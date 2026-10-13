@@ -1,86 +1,97 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>پنل کشف و تست وب‌سرویس‌های فرانت‌اند</title>
+  <title>API Tester - Discovery & Automated Testing Workbench</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="theme-light">
-  <div class="app-container">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="header-titles">
-        <div class="logo-badge">⚡ API Tester</div>
-        <h1 id="project-title">در حال بارگذاری پروژه...</h1>
-        <span id="scan-badge" class="badge">اسکن اولیه</span>
+<body class="theme-dark">
+  <div class="workbench-layout">
+    <!-- Top Navigation Bar -->
+    <header class="workbench-header">
+      <div class="brand-group">
+        <div class="brand-badge">⚡ API TESTER WORKBENCH</div>
+        <h1 id="project-title" class="project-name">Loading project...</h1>
+        <span id="status-pill" class="pill pill-idle">● Ready</span>
       </div>
-      <div class="header-actions">
-        <button id="theme-toggle" class="btn btn-secondary btn-icon" title="تغییر تم تاریک/روشن">🌓</button>
+      <div class="header-tools">
+        <button id="theme-toggle-btn" class="btn btn-secondary btn-icon" title="Toggle Dark/Light Mode">🌓</button>
       </div>
     </header>
 
-    <!-- Main Grid -->
-    <main class="main-content">
-      <!-- Config & Auth Card -->
+    <!-- Main Workspace -->
+    <main class="workbench-main">
+      <!-- Target & Auth Config Card -->
       <section class="card config-card">
-        <h2 class="card-title">تنظیمات اتصال و احراز هویت</h2>
-        <div class="form-grid">
-          <!-- Base URL -->
+        <div class="card-header">
+          <h2 class="card-title">Connection & Authentication</h2>
+          <span class="text-muted text-xs">Configure base target and access credentials</span>
+        </div>
+        
+        <div class="config-grid">
+          <!-- Base URL Input -->
           <div class="form-group span-2">
-            <label for="base-url-input">آدرس پایه سرور (Base URL):</label>
+            <label for="base-url-input">Target Base URL</label>
             <div class="input-with-select">
-              <input type="text" id="base-url-input" placeholder="https://api.example.com" dir="ltr" class="code-font">
-              <select id="env-urls-select" title="انتخاب از آدرس‌های کشف‌شده">
-                <option value="">-- آدرس‌های محیطی --</option>
+              <input type="text" id="base-url-input" placeholder="https://api.example.com" class="code-input">
+              <select id="env-urls-select" title="Detected target environments">
+                <option value="">-- Discovered Targets --</option>
               </select>
             </div>
           </div>
 
           <!-- Auth Mode -->
           <div class="form-group">
-            <label for="auth-mode-select">روش احراز هویت:</label>
+            <label for="auth-mode-select">Authentication Mode</label>
             <select id="auth-mode-select">
-              <option value="bearer_token">توکن Bearer</option>
-              <option value="two_factor_otp">احراز هویت دومرحله‌ای (2FA / OTP)</option>
-              <option value="custom_header">هدر سفارشی (X-API-Key)</option>
-              <option value="login_credentials">نام کاربری و رمز عبور</option>
-              <option value="none">بدون احراز هویت (عمومی)</option>
+              <option value="bearer_token">Bearer Token</option>
+              <option value="custom_header">API Key / Custom Header</option>
+              <option value="two_factor_otp">Two-Factor OTP / MFA</option>
+              <option value="login_credentials">Username & Password</option>
+              <option value="none">No Auth (Public)</option>
             </select>
           </div>
 
-          <!-- Token / Secret -->
+          <!-- Header Name & Secret Input -->
           <div class="form-group" id="auth-token-group">
-            <label id="auth-token-label" for="auth-token-input">توکن دسترسی:</label>
-            <input type="password" id="auth-token-input" placeholder="توکن خود را وارد کنید..." dir="ltr" class="code-font">
+            <label id="auth-token-label" for="auth-token-input">Token / Secret</label>
+            <input type="password" id="auth-token-input" placeholder="Enter token or authorization secret..." class="code-input">
           </div>
 
-          <!-- OTP Code (conditional) -->
-          <div class="form-group" id="auth-otp-group">
-            <label for="auth-otp-input">کد یکبار مصرف (2FA / OTP):</label>
-            <input type="text" id="auth-otp-input" placeholder="123456" maxlength="8" dir="ltr" class="code-font text-center">
+          <!-- 2FA / OTP Code (conditional) -->
+          <div class="form-group hidden" id="auth-otp-group">
+            <label for="auth-otp-input">2FA / OTP Code</label>
+            <input type="text" id="auth-otp-input" placeholder="123456" maxlength="8" class="code-input text-center">
           </div>
         </div>
       </section>
 
-      <!-- Action & Controls Bar -->
-      <section class="controls-bar">
-        <div class="selection-actions">
-          <button id="select-safe-btn" class="btn btn-sm btn-secondary">انتخاب متدهای ایمن (GET)</button>
-          <button id="select-all-btn" class="btn btn-sm btn-secondary">انتخاب همه</button>
-          <button id="deselect-all-btn" class="btn btn-sm btn-secondary">لغو همه</button>
+      <!-- Action & Filter Bar -->
+      <section class="toolbar-card">
+        <!-- Search & Filters -->
+        <div class="search-filter-box">
+          <input type="text" id="endpoint-search-input" placeholder="Search endpoints by path or name..." class="search-input">
         </div>
 
-        <div class="stats-pills">
-          <span class="pill">کل: <strong id="stat-total">0</strong></span>
-          <span class="pill pill-primary">انتخاب‌شده: <strong id="stat-selected">0</strong></span>
-          <span class="pill pill-success">موفق: <strong id="stat-success">0</strong></span>
-          <span class="pill pill-danger">خطا: <strong id="stat-error">0</strong></span>
+        <div class="selection-buttons">
+          <button id="select-safe-btn" class="btn btn-sm btn-secondary">Select Safe (GET)</button>
+          <button id="select-all-btn" class="btn btn-sm btn-secondary">Select All</button>
+          <button id="deselect-all-btn" class="btn btn-sm btn-secondary">Clear</button>
         </div>
 
-        <div class="execution-actions">
-          <button id="start-test-btn" class="btn btn-primary btn-lg">▶ شروع تست</button>
-          <button id="stop-test-btn" class="btn btn-danger btn-lg hidden">⏹ توقف اضطراری</button>
+        <!-- Metrics Pills -->
+        <div class="metrics-group">
+          <span class="metric-pill">Total: <strong id="stat-total">0</strong></span>
+          <span class="metric-pill metric-selected">Selected: <strong id="stat-selected">0</strong></span>
+          <span class="metric-pill metric-passed">Passed: <strong id="stat-passed">0</strong></span>
+          <span class="metric-pill metric-failed">Failed: <strong id="stat-failed">0</strong></span>
+        </div>
+
+        <!-- Execution Triggers -->
+        <div class="trigger-group">
+          <button id="start-test-btn" class="btn btn-primary btn-run">▶ Run Selected</button>
+          <button id="stop-test-btn" class="btn btn-danger btn-stop hidden">⏹ Abort Execution</button>
         </div>
       </section>
 
@@ -89,72 +100,118 @@
         <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
       </div>
 
-      <!-- Endpoints List -->
-      <section class="card endpoints-card">
-        <div class="card-header-flex">
-          <h2 class="card-title">فهرست وب‌سرویس‌های کشف‌شده (به ترتیب وابستگی)</h2>
-          <span class="text-muted text-sm">متدهای نوشتنی به صورت پیش‌فرض برای ایمنی تیک نخورده‌اند.</span>
+      <!-- Endpoints Sequence Table -->
+      <section class="card table-card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Endpoint Execution Sequence</h2>
+            <p class="text-muted text-xs">Topologically ordered by dependency graph. Login & Auth are prioritized at #1.</p>
+          </div>
         </div>
 
-        <div class="table-responsive">
+        <div class="table-container">
           <table class="endpoints-table">
             <thead>
               <tr>
                 <th width="40"><input type="checkbox" id="master-checkbox"></th>
-                <th width="60">ترتیب</th>
-                <th width="90">متد</th>
-                <th>نام و مسیر سرویس</th>
-                <th width="120">سطح ریسک</th>
-                <th width="130">پیش‌نیاز</th>
-                <th width="160">وضعیت تست</th>
+                <th width="50">#</th>
+                <th width="80">Method</th>
+                <th>Endpoint Path & Description</th>
+                <th width="110">Risk</th>
+                <th width="140">Prerequisites</th>
+                <th width="150">Status</th>
+                <th width="80">Inspect</th>
               </tr>
             </thead>
             <tbody id="endpoints-tbody">
               <tr>
-                <td colspan="7" class="text-center text-muted">در حال بارگذاری لیست سرویس‌ها...</td>
+                <td colspan="8" class="text-center text-muted py-8">Scanning and loading endpoints...</td>
               </tr>
             </tbody>
           </table>
         </div>
       </section>
-
-      <!-- Diagnostics & Results Drawer -->
-      <section id="diagnostics-section" class="diagnostics-card hidden">
-        <div class="diag-header">
-          <h3 id="diag-title">⚠️ گزارش تشخیصی خطا</h3>
-          <button id="diag-close-btn" class="btn btn-sm btn-secondary">بستن</button>
-        </div>
-        <div class="diag-body">
-          <div class="diag-badge-row">
-            <span id="diag-category-badge" class="badge badge-danger">AUTH_ERROR</span>
-            <span id="diag-url" class="code-font text-muted"></span>
-          </div>
-          <p id="diag-message" class="diag-msg"></p>
-          <div class="diag-suggestion-box">
-            <strong>راهکار پیشنهادی:</strong>
-            <p id="diag-suggestion"></p>
-          </div>
-          <div class="diag-file-link">
-            فایل پاسخ ذخیره‌شده: <code id="diag-file-path" dir="ltr"></code>
-          </div>
-        </div>
-      </section>
-
-      <!-- Completion Summary Modal / Card -->
-      <section id="summary-section" class="card summary-card hidden">
-        <div class="summary-content">
-          <div class="summary-icon">🎉</div>
-          <div class="summary-details">
-            <h3>چرخه آزمون با موفقیت به پایان رسید</h3>
-            <p id="summary-metrics-text"></p>
-            <p class="text-muted text-sm">
-              کلیه پاسخ‌های مستقل به فرمت JSON در پوشه <code>.api-tester/responses/</code> ذخیره گردیدند.
-            </p>
-          </div>
-          <button id="summary-dismiss-btn" class="btn btn-secondary">متوجه شدم</button>
-        </div>
-      </section>
     </main>
+
+    <!-- Slide-over Inspector Drawer -->
+    <aside id="inspector-drawer" class="inspector-drawer hidden">
+      <div class="drawer-header">
+        <div class="drawer-title-group">
+          <span id="inspect-method-badge" class="badge badge-get">GET</span>
+          <h3 id="inspect-title" class="drawer-title">Endpoint Details</h3>
+        </div>
+        <button id="close-drawer-btn" class="btn btn-sm btn-secondary btn-icon">✕</button>
+      </div>
+
+      <div class="drawer-content">
+        <!-- Diagnostic Alert (if failed) -->
+        <div id="inspect-diag-card" class="diag-alert hidden">
+          <div class="diag-alert-header">
+            <span id="inspect-diag-category" class="diag-chip">AUTH_ERROR</span>
+            <span class="text-xs text-muted">Root Cause Diagnosis</span>
+          </div>
+          <p id="inspect-diag-msg" class="diag-desc"></p>
+          <div class="diag-recommendation">
+            <strong>Recommended Action:</strong>
+            <p id="inspect-diag-fix"></p>
+          </div>
+        </div>
+
+        <!-- Request Section -->
+        <div class="inspector-section">
+          <h4 class="section-subtitle">Request Details</h4>
+          <div class="meta-row">
+            <span class="meta-label">Full URL:</span>
+            <code id="inspect-url" class="code-val">-</code>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Saved Response File:</span>
+            <code id="inspect-file-path" class="code-val">-</code>
+          </div>
+
+          <h5 class="subsection-title">Request Headers</h5>
+          <pre id="inspect-req-headers" class="code-block">{}</pre>
+
+          <div id="inspect-req-body-wrapper">
+            <h5 class="subsection-title">Request Body</h5>
+            <pre id="inspect-req-body" class="code-block">null</pre>
+          </div>
+        </div>
+
+        <!-- Response Section -->
+        <div class="inspector-section">
+          <div class="section-header-flex">
+            <h4 class="section-subtitle">Server Response</h4>
+            <span id="inspect-resp-status" class="status-badge">-</span>
+          </div>
+          
+          <h5 class="subsection-title">Response Headers</h5>
+          <pre id="inspect-resp-headers" class="code-block">{}</pre>
+
+          <h5 class="subsection-title">Response Body</h5>
+          <pre id="inspect-resp-body" class="code-block">No response received yet.</pre>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Run Summary Modal -->
+    <div id="summary-modal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>🎉 Test Run Completed</h3>
+        </div>
+        <div class="modal-body">
+          <p id="modal-summary-text"></p>
+          <div class="storage-notice">
+            All raw JSON responses were saved to:
+            <code>.api-tester/responses/</code>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="modal-dismiss-btn" class="btn btn-primary">Done</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="app.js"></script>

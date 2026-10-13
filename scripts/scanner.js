@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getRiskLevelForMethod, sortEndpoints } from './dependency-sorter.js';
+import { getRiskLevelForMethod, sortEndpoints, isAuthLoginEndpoint } from './dependency-sorter.js';
 import { createDefaultManifest } from './manifest-helper.js';
 
 const IGNORED_DIRS = new Set([
@@ -14,10 +14,63 @@ const IGNORED_DIRS = new Set([
   '.specify',
   '.agents',
   '.api-tester',
+  '.gradle',
+  '.idea',
   'coverage'
 ]);
 
 const CODE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte', '.kt', '.java']);
+
+const EXCLUDED_HOST_PATTERNS = [
+  'w3.org', 'xml.org', 'xmlpull.org', 'adobe.com', 'apache.org', 'schema.org',
+  'myket.ir', 'jitpack.io', 'maven', 'gradle', 'github.com', 'gitlab', 'google.com',
+  'android.com', 'picsum.photos', 'xsgames.co', 'soft98.ir', 'salamdonya.com',
+  'xmlns', 'localhost/sax'
+];
+
+const EXCLUDED_PATH_EXTENSIONS = [
+  '.html', '.htm', '.xml', '.dtd', '.xsd', '.png', '.jpg', '.jpeg', '.gif',
+  '.svg', '.ico', '.css', '.map', '.txt', '.json'
+];
+
+/**
+ * Validates whether a path is a genuine API endpoint and not an XML schema/file asset.
+ */
+export function isValidApiEndpoint(epPath) {
+  if (!epPath || typeof epPath !== 'string') return false;
+  const lower = epPath.toLowerCase().trim();
+
+  if (lower.length < 3) return false;
+  if (/^\/[a-zA-Z0-9]$/.test(lower)) return false;
+  if (lower.includes('/sax/') || lower.includes('/features/') || lower.includes('/properties/')) return false;
+  if (lower.includes('xmlpull') || lower.includes('xmlns') || lower.includes('doctype')) return false;
+
+  for (const ext of EXCLUDED_PATH_EXTENSIONS) {
+    if (lower.endsWith(ext)) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Validates whether a URL represents an actual backend API host.
+ */
+export function isValidBaseUrl(urlStr) {
+  if (!urlStr || typeof urlStr !== 'string') return false;
+  try {
+    const parsed = new URL(urlStr);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+
+    const host = parsed.hostname.toLowerCase();
+    for (const bad of EXCLUDED_HOST_PATTERNS) {
+      if (host.includes(bad)) return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Recursively collects file paths up to maxDepth.
@@ -45,7 +98,7 @@ function walkDir(dir, fileList = [], depth = 0, maxDepth = 16) {
 }
 
 /**
- * Extracts environment variables and URLs from .env* and .properties files.
+ * Extracts environment variables and backend URLs from .env* and .properties files.
  */
 export function parseEnvFiles(projectRoot) {
   const urls = new Set();
@@ -71,11 +124,12 @@ export function parseEnvFiles(projectRoot) {
           val = val.replace(/^["']|["']$/g, '');
           envVars[key] = val;
 
-          // Check if key or value represents an API URL
-          if (/API|BASE_URL|SERVER|BACKEND|URL|ENDPOINT/i.test(key) && /^https?:\/\//i.test(val)) {
-            urls.add(val.replace(/\/+$/, ''));
-          } else if (/^https?:\/\//i.test(val)) {
-            urls.add(val.replace(/\/+$/, ''));
+          // Check if key represents an API URL
+          if (/API|BASE_URL|SERVER|BACKEND|URL|ENDPOINT|ONLINE/i.test(key) && /^https?:\/\//i.test(val)) {
+            const cleanUrl = val.replace(/\/+$/, '');
+            if (isValidBaseUrl(cleanUrl)) {
+              urls.add(cleanUrl);
+            }
           }
         }
       }
@@ -88,7 +142,7 @@ export function parseEnvFiles(projectRoot) {
 }
 
 /**
- * Parses config files like vite.config.*, next.config.*, webpack.config.*, build.gradle* for proxy/API targets.
+ * Parses build and config files for proxy/API targets.
  */
 export function parseConfigFiles(projectRoot) {
   const urls = new Set();
@@ -104,17 +158,28 @@ export function parseConfigFiles(projectRoot) {
     if (fs.existsSync(filePath)) {
       try {
         const content = fs.readFileSync(filePath, 'utf-8');
-        // Match target: 'http://...' or target: "http://..."
+
+        // Proxy targets
         const targetMatches = content.matchAll(/target\s*:\s*['"`](https?:\/\/[^'"`]+)['"`]/gi);
         for (const match of targetMatches) {
-          if (match[1]) urls.add(match[1].replace(/\/+$/, ''));
+          if (match[1] && isValidBaseUrl(match[1])) {
+            urls.add(match[1].replace(/\/+$/, ''));
+          }
         }
 
-        // Match buildConfigField or properties with URLs
-        const urlMatches = content.matchAll(/['"`](https?:\/\/[^'"`\s]+)['"`]/gi);
-        for (const match of urlMatches) {
-          if (match[1] && !match[1].includes('schemas.') && !match[1].includes('w3.org')) {
-            urls.add(match[1].replace(/\/+$/, ''));
+        // buildConfigField with URLs
+        const bcfMatches = content.matchAll(/buildConfigField\s*\(\s*["']String["']\s*,\s*["'](?:BaseUrl|AgentUrl|ApiUrl|OnlineBaseUrl)["']\s*,\s*(?:secretProps\.getProperty\([^)]+,\s*)?["']([^"')\r\n]+)["']/gi);
+        for (const m of bcfMatches) {
+          if (m[1] && isValidBaseUrl(m[1])) {
+            urls.add(m[1].replace(/\/+$/, ''));
+          }
+        }
+
+        // Explicit OnlineBaseUrl in gradle
+        const onlineBaseMatches = content.matchAll(/OnlineBaseUrl["']?\s*,\s*["']\\?"(https?:\/\/[^"'\\]+)/gi);
+        for (const m of onlineBaseMatches) {
+          if (m[1] && isValidBaseUrl(m[1])) {
+            urls.add(m[1].replace(/\/+$/, ''));
           }
         }
       } catch (err) {}
@@ -125,7 +190,7 @@ export function parseConfigFiles(projectRoot) {
 }
 
 /**
- * Scans code files for network client calls (Axios, Fetch, Ky, RTK Query, Ktor, Retrofit) and auth headers.
+ * Scans code files for network client calls and auth headers.
  */
 export function scanCodeFiles(projectRoot) {
   const allFiles = walkDir(projectRoot);
@@ -140,6 +205,42 @@ export function scanCodeFiles(projectRoot) {
 
   const endpointSeen = new Set();
 
+  function registerEndpoint(method, rawPath, fnName = null) {
+    let epPath = rawPath.trim();
+    if (!epPath) return;
+
+    // If path is a full URL, split into BaseUrl and Path
+    if (/^https?:\/\//i.test(epPath)) {
+      try {
+        const u = new URL(epPath);
+        if (isValidBaseUrl(`${u.protocol}//${u.host}`)) {
+          detectedBaseUrls.add(`${u.protocol}//${u.host}`);
+        }
+        epPath = u.pathname;
+      } catch {
+        return;
+      }
+    }
+
+    // Clean leading/trailing tokens
+    epPath = epPath.replace(/^(\$\{BuildConfig\.[a-zA-Z0-9_]+\}|BuildConfig\.[a-zA-Z0-9_]+\s*\+\s*)/, '');
+    epPath = epPath.replace(/^["']|["']$/g, '').trim();
+
+    if (!epPath.startsWith('/') && !epPath.startsWith('http')) {
+      epPath = '/' + epPath;
+    }
+
+    if (!isValidApiEndpoint(epPath)) return;
+
+    const cleanMethod = (method || 'GET').toUpperCase();
+    const key = `${cleanMethod}:${epPath}`;
+
+    if (!endpointSeen.has(key)) {
+      endpointSeen.add(key);
+      foundEndpoints.push(createEndpointDescriptor(cleanMethod, epPath, fnName));
+    }
+  }
+
   for (const filePath of allFiles) {
     const ext = path.extname(filePath).toLowerCase();
     if (!CODE_EXTENSIONS.has(ext)) continue;
@@ -151,35 +252,20 @@ export function scanCodeFiles(projectRoot) {
       continue;
     }
 
-    // Detect Axios baseURL: baseURL: '...'
+    // 1. Detect Axios baseURL
     const baseMatch = content.matchAll(/baseURL\s*:\s*['"`](https?:\/\/[^'"`]+)['"`]/gi);
     for (const m of baseMatch) {
-      if (m[1]) detectedBaseUrls.add(m[1].replace(/\/+$/, ''));
+      if (m[1] && isValidBaseUrl(m[1])) {
+        detectedBaseUrls.add(m[1].replace(/\/+$/, ''));
+      }
     }
 
-    // Detect standalone URLs like "https://api..."
-    const fullUrlMatch = content.matchAll(/['"`](https?:\/\/[a-zA-Z0-9.-]+(?::[0-9]+)?(?:\/[^'"`\s]*)?)['"`]/gi);
-    for (const m of fullUrlMatch) {
-      try {
-        const parsed = new URL(m[1]);
-        if (!parsed.hostname.includes('w3.org') && !parsed.hostname.includes('schema') && !parsed.hostname.includes('github') && !parsed.hostname.includes('google')) {
-          detectedBaseUrls.add(`${parsed.protocol}//${parsed.host}`);
-          if (parsed.pathname && parsed.pathname.length > 1) {
-            const key = `GET:${parsed.pathname}`;
-            if (!endpointSeen.has(key)) {
-              endpointSeen.add(key);
-              foundEndpoints.push(createEndpointDescriptor('GET', parsed.pathname));
-            }
-          }
-        }
-      } catch {}
-    }
-
-    // Detect Auth / OTP indicators
+    // 2. Detect Auth / OTP indicators
     if (/otp|2fa|two_factor|verification.*code/i.test(content)) {
       authInfo.requiresOtp = true;
     }
-    const apiKeyMatch = content.match(/headers?\.(?:append|put)?\s*\(\s*["']X-API-Key["']\s*,\s*["']([^"']+)["']/i);
+
+    const apiKeyMatch = content.match(/headers?\.(?:append|put|header)?\s*\(\s*["']X-API-Key["']\s*,\s*["']([^"']+)["']/i);
     if (apiKeyMatch) {
       authInfo.mode = 'custom_header';
       authInfo.headerName = 'X-API-Key';
@@ -191,116 +277,66 @@ export function scanCodeFiles(projectRoot) {
       authInfo.headerPrefix = '';
     }
 
-    // Regex extraction patterns for HTTP endpoints
-    // 1. axios.get('path'), client.post('path'), etc.
-    const clientCallRegex = /(?:axios|api|client|http|request|ky)\.(get|post|put|patch|delete|head|options)\s*\(\s*['"`]([^\s'"`]+)['"`]/gi;
-    let match;
-    while ((match = clientCallRegex.exec(content)) !== null) {
-      const method = match[1].toUpperCase();
-      let epPath = match[2];
-      if (!epPath.startsWith('/') && !/^https?:\/\//i.test(epPath)) {
-        epPath = '/' + epPath;
-      }
-      const key = `${method}:${epPath}`;
-      if (!endpointSeen.has(key)) {
-        endpointSeen.add(key);
-        foundEndpoints.push(createEndpointDescriptor(method, epPath));
-      }
-    }
-
-    // 2. fetch('path', { method: 'POST' }) or fetch('path')
-    const fetchRegex = /fetch\s*\(\s*['"`]([^\s'"`]+)['"`](?:\s*,\s*\{[^}]*method\s*:\s*['"`]([a-zA-Z]+)['"`])?/gi;
-    while ((match = fetchRegex.exec(content)) !== null) {
-      let epPath = match[1];
-      const method = (match[2] || 'GET').toUpperCase();
-      if (!epPath.startsWith('/') && !/^https?:\/\//i.test(epPath)) {
-        epPath = '/' + epPath;
-      }
-      const key = `${method}:${epPath}`;
-      if (!endpointSeen.has(key)) {
-        endpointSeen.add(key);
-        foundEndpoints.push(createEndpointDescriptor(method, epPath));
-      }
-    }
-
-    // 3. RTK Query: builder.query({ query: () => '/path' })
-    const rtkQueryRegex = /query\s*:\s*\([^)]*\)\s*=>\s*(?:\{[^}]*url\s*:\s*['"`]([^\s'"`]+)['"`]|['"`]([^\s'"`]+)['"`])/gi;
-    while ((match = rtkQueryRegex.exec(content)) !== null) {
-      let epPath = match[1] || match[2];
-      if (epPath) {
-        if (!epPath.startsWith('/') && !/^https?:\/\//i.test(epPath)) {
-          epPath = '/' + epPath;
-        }
-        const key = `GET:${epPath}`;
-        if (!endpointSeen.has(key)) {
-          endpointSeen.add(key);
-          foundEndpoints.push(createEndpointDescriptor('GET', epPath));
-        }
-      }
-    }
-
-    // 4. RTK Query mutation: builder.mutation({ query: () => ({ url: '/path', method: 'POST' }) })
-    const rtkMutationRegex = /url\s*:\s*['"`]([^\s'"`]+)['"`]\s*,\s*method\s*:\s*['"`]([a-zA-Z]+)['"`]/gi;
-    while ((match = rtkMutationRegex.exec(content)) !== null) {
-      let epPath = match[1];
-      const method = match[2].toUpperCase();
-      if (!epPath.startsWith('/') && !/^https?:\/\//i.test(epPath)) {
-        epPath = '/' + epPath;
-      }
-      const key = `${method}:${epPath}`;
-      if (!endpointSeen.has(key)) {
-        endpointSeen.add(key);
-        foundEndpoints.push(createEndpointDescriptor(method, epPath));
-      }
-    }
-
-    // 5. Retrofit annotations: @GET("..."), @POST("...")
-    const retrofitRegex = /@(GET|POST|PUT|PATCH|DELETE)\s*\(\s*["']([^"']+)["']\s*\)/gi;
-    while ((match = retrofitRegex.exec(content)) !== null) {
-      const method = match[1].toUpperCase();
-      let epPath = match[2];
-      if (!epPath.startsWith('/') && !/^https?:\/\//i.test(epPath)) {
-        epPath = '/' + epPath;
-      }
-      const key = `${method}:${epPath}`;
-      if (!endpointSeen.has(key)) {
-        endpointSeen.add(key);
-        foundEndpoints.push(createEndpointDescriptor(method, epPath));
-      }
-    }
-
-    // 6. Ktor: url(BuildConfig.BaseUrl + "path") or httpClient.post("path") or url("path")
-    const ktorUrlRegex = /(?:url\s*\(\s*(?:BuildConfig\.[a-zA-Z0-9_]+\s*\+\s*|\$\{BuildConfig\.[a-zA-Z0-9_]+\}|")|(?:\.httpClient|\bclient)\.(get|post|put|patch|delete)\s*\(\s*(?:BuildConfig\.[a-zA-Z0-9_]+\s*\+\s*|\$\{BuildConfig\.[a-zA-Z0-9_]+\}|")|url\s*\(\s*)["']?([^"')\r\n]+)["']?\)?/gi;
+    // 3. Kotlin / Ktor Extraction
+    // Match function declaration with method and url
+    const ktorMethodRegex = /(?:override\s+suspend\s+fun|suspend\s+fun|fun)\s+([a-zA-Z0-9_]+)[\s\S]*?(?:provider\.httpClient|\bclient|httpClient)?\.(get|post|put|patch|delete)[\s\S]*?url\s*\(\s*(?:BuildConfig\.[a-zA-Z0-9_]+\s*\+\s*|\$\{BuildConfig\.[a-zA-Z0-9_]+\}|")?['"]([^'"]+)['"]/g;
     let ktorMatch;
-    while ((ktorMatch = ktorUrlRegex.exec(content)) !== null) {
-      let rawPath = ktorMatch[2] || ktorMatch[0];
-      const pathMatch = rawPath.match(/["']([a-zA-Z0-9_/:-]+)["']/);
-      if (pathMatch) {
-        let epPath = pathMatch[1];
-        if (epPath.startsWith('http')) {
-          try {
-            const u = new URL(epPath);
-            epPath = u.pathname;
-            detectedBaseUrls.add(`${u.protocol}//${u.host}`);
-          } catch {}
-        }
-        if (!epPath.startsWith('/')) epPath = '/' + epPath;
-        if (epPath.length > 1 && !epPath.includes(' ') && !epPath.includes('=')) {
-          // Determine method
-          let method = 'GET';
-          if (/post/i.test(ktorMatch[1] || '')) method = 'POST';
-          else if (/delete/i.test(ktorMatch[1] || '')) method = 'DELETE';
-          else if (/put/i.test(ktorMatch[1] || '')) method = 'PUT';
-          else if (/logout|login|replace|join|avatar|register/i.test(epPath)) method = 'POST';
-          else if (/delete|remove|cancel/i.test(epPath)) method = 'DELETE';
+    while ((ktorMatch = ktorMethodRegex.exec(content)) !== null) {
+      const fnName = ktorMatch[1];
+      const method = ktorMatch[2].toUpperCase();
+      const rawPath = ktorMatch[3];
+      registerEndpoint(method, rawPath, fnName);
+    }
 
-          const key = `${method}:${epPath}`;
-          if (!endpointSeen.has(key)) {
-            endpointSeen.add(key);
-            foundEndpoints.push(createEndpointDescriptor(method, epPath));
-          }
-        }
+    // Match generic url("path") or url(BuildConfig.BaseUrl + "path") in Ktor
+    const genericKtorUrlRegex = /(?:url|\.post|\.get|\.put|\.delete)\s*(?:\(\s*[^)]*?|\{\s*[^}]*?url\s*\(\s*[^)]*?)(['"])([^'"]+)\1/gi;
+    let genMatch;
+    while ((genMatch = genericKtorUrlRegex.exec(content)) !== null) {
+      const rawPath = genMatch[2];
+      let inferredMethod = 'GET';
+      if (/login|logout|replace|create|submit|join|avatar|upload|register|post/i.test(rawPath)) {
+        inferredMethod = 'POST';
+      } else if (/delete|remove|cancel/i.test(rawPath)) {
+        inferredMethod = 'DELETE';
       }
+      registerEndpoint(inferredMethod, rawPath);
+    }
+
+    // 4. Retrofit Extraction
+    const retrofitRegex = /@(GET|POST|PUT|PATCH|DELETE)\s*\(\s*["']([^"']+)["']\s*\)(?:\s*(?:suspend\s+)?fun\s+([a-zA-Z0-9_]+))?/gi;
+    let retroMatch;
+    while ((retroMatch = retrofitRegex.exec(content)) !== null) {
+      const method = retroMatch[1].toUpperCase();
+      const rawPath = retroMatch[2];
+      const fnName = retroMatch[3] || null;
+      registerEndpoint(method, rawPath, fnName);
+    }
+
+    // 5. JavaScript / TypeScript: Axios, Ky, Fetch
+    const clientCallRegex = /(?:axios|api|client|http|request|ky)\.(get|post|put|patch|delete|head|options)\s*\(\s*['"`]([^\s'"`]+)['"`]/gi;
+    let clientMatch;
+    while ((clientMatch = clientCallRegex.exec(content)) !== null) {
+      registerEndpoint(clientMatch[1].toUpperCase(), clientMatch[2]);
+    }
+
+    const fetchRegex = /fetch\s*\(\s*['"`]([^\s'"`]+)['"`](?:\s*,\s*\{[^}]*method\s*:\s*['"`]([a-zA-Z]+)['"`])?/gi;
+    let fetchMatch;
+    while ((fetchMatch = fetchRegex.exec(content)) !== null) {
+      const method = (fetchMatch[2] || 'GET').toUpperCase();
+      registerEndpoint(method, fetchMatch[1]);
+    }
+
+    // 6. RTK Query
+    const rtkQueryRegex = /query\s*:\s*\([^)]*\)\s*=>\s*(?:\{[^}]*url\s*:\s*['"`]([^\s'"`]+)['"`]|['"`]([^\s'"`]+)['"`])/gi;
+    let rtkQMatch;
+    while ((rtkQMatch = rtkQueryRegex.exec(content)) !== null) {
+      registerEndpoint('GET', rtkQMatch[1] || rtkQMatch[2]);
+    }
+
+    const rtkMutationRegex = /url\s*:\s*['"`]([^\s'"`]+)['"`]\s*,\s*method\s*:\s*['"`]([a-zA-Z]+)['"`]/gi;
+    let rtkMMatch;
+    while ((rtkMMatch = rtkMutationRegex.exec(content)) !== null) {
+      registerEndpoint(rtkMMatch[2].toUpperCase(), rtkMMatch[1]);
     }
   }
 
@@ -312,30 +348,45 @@ export function scanCodeFiles(projectRoot) {
 }
 
 /**
- * Helper to build an ApiEndpoint descriptor.
+ * Creates a clean, English descriptor for each endpoint.
  */
-function createEndpointDescriptor(method, epPath) {
+function createEndpointDescriptor(method, epPath, fnName = null) {
   const cleanPath = epPath
     .replace(/\$\{([a-zA-Z0-9_.]+)\}/g, (_, varName) => `:${varName.split('.').pop()}`)
     .replace(/\$\{.*?\}/g, ':param')
     .replace(/\/+$/, '') || '/';
+
   const slug = cleanPath.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'root';
   const id = `${method.toLowerCase()}-${slug}`;
 
-  // Form a readable name
-  const nameParts = cleanPath.split('/').filter(Boolean);
-  const resourceName = nameParts.length > 0 ? nameParts[nameParts.length - 1] : 'root';
-  const actionName = method === 'GET' ? 'دریافت' : method === 'POST' ? 'ایجاد' : method === 'PUT' ? 'ویرایش' : method === 'DELETE' ? 'حذف' : method;
-  const name = `${actionName} ${resourceName}`;
+  // Form a readable English name
+  let name = '';
+  if (fnName) {
+    name = fnName.replace(/([A-Z])/g, ' $1').trim();
+    name = name.charAt(0).toUpperCase() + name.slice(1);
+  } else {
+    const parts = cleanPath.split('/').filter(Boolean);
+    const last = parts.length > 0 ? parts[parts.length - 1] : 'Root';
+    const action = method === 'GET' ? 'Get' : method === 'POST' ? 'Create' : method === 'PUT' ? 'Update' : method === 'DELETE' ? 'Delete' : method;
+    name = `${action} ${last.replace(/[-_:]/g, ' ')}`;
+  }
+
+  // Explicit Auth / Login naming
+  if (cleanPath.includes('/auth/login') || cleanPath.endsWith('/login')) {
+    name = 'User Login (Authenticate)';
+  } else if (cleanPath.includes('/auth/logout')) {
+    name = 'User Logout';
+  }
 
   const riskLevel = getRiskLevelForMethod(method);
+  const isLogin = isAuthLoginEndpoint({ path: cleanPath, id });
 
-  // If path has path parameters like /users/:id, it likely depends on the collection endpoint /users
+  // Dependencies
   const dependsOn = [];
   if (cleanPath.includes(':') || cleanPath.includes('{')) {
     const parentPath = cleanPath.split('/:')[0].split('/{')[0];
     if (parentPath && parentPath !== cleanPath) {
-      const parentSlug = parentPath.replace(/[^a-zA-Z0-9]/g, '-').replace(/^-+|-+$/g, '').toLowerCase();
+      const parentSlug = parentPath.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase();
       dependsOn.push(`get-${parentSlug}`);
     }
   }
@@ -351,7 +402,7 @@ function createEndpointDescriptor(method, epPath) {
     },
     defaultBody: ['POST', 'PUT', 'PATCH'].includes(method) ? {} : undefined,
     dependsOn,
-    defaultSelected: riskLevel === 'SAFE'
+    defaultSelected: (riskLevel === 'SAFE' || isLogin)
   };
 }
 
@@ -377,10 +428,19 @@ export function scanProject(projectRoot = process.cwd()) {
     baseUrlsSet.add('http://localhost:3000');
   }
 
-  const baseUrls = Array.from(baseUrlsSet);
-  const defaultBaseUrl = baseUrls[0] || 'http://localhost:3000';
+  const baseUrls = Array.from(baseUrlsSet).filter(isValidBaseUrl);
+  if (baseUrls.length === 0) {
+    baseUrls.push('http://localhost:3000');
+  }
 
-  // Sort endpoints topologically
+  // Choose default Base URL (prioritize staging-app or dev/api host if present)
+  let defaultBaseUrl = baseUrls[0];
+  const preferredUrl = baseUrls.find(u => /staging-app|api|backend/i.test(u));
+  if (preferredUrl) {
+    defaultBaseUrl = preferredUrl;
+  }
+
+  // Sort endpoints topologically with Login at #1
   const sorted = sortEndpoints(rawEndpoints);
 
   return createDefaultManifest({
@@ -393,7 +453,7 @@ export function scanProject(projectRoot = process.cwd()) {
       headerName: authInfo.headerName,
       headerPrefix: authInfo.headerPrefix,
       requiresOtp: authInfo.requiresOtp,
-      token: ''
+      token: authInfo.token || ''
     },
     endpoints: sorted
   });

@@ -1,5 +1,6 @@
 /**
  * Dependency Sorter for API Endpoints using Topological Sorting (DAG)
+ * Prioritizes Authentication/Login endpoints first, followed by config, safe reads, mutations, and logout/destructions.
  */
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -19,6 +20,27 @@ export function getRiskLevelForMethod(method) {
 }
 
 /**
+ * Checks if endpoint is an authentic primary authentication / login endpoint.
+ */
+export function isAuthLoginEndpoint(ep) {
+  const p = (ep.path || '').toLowerCase();
+  const id = (ep.id || '').toLowerCase();
+
+  if (p.includes('event') || p.includes('history') || p.includes('summary')) {
+    return false;
+  }
+
+  return (
+    p.endsWith('/login') ||
+    p.includes('/auth/login') ||
+    p.includes('/oauth/token') ||
+    id === 'post-v1-auth-login' ||
+    id === 'post-auth-login' ||
+    id === 'post-login'
+  );
+}
+
+/**
  * Sorts API endpoints based on dependency relationships (DAG) and risk levels.
  * @param {Array<object>} endpoints 
  * @returns {Array<object>}
@@ -35,8 +57,9 @@ export function sortEndpoints(endpoints = []) {
     const method = (ep.method || 'GET').toUpperCase();
     const riskLevel = ep.riskLevel || getRiskLevelForMethod(method);
     const dependsOn = Array.isArray(ep.dependsOn) ? [...ep.dependsOn] : [];
+    const isLogin = isAuthLoginEndpoint({ ...ep, id, path: ep.path });
     
-    // SAFE endpoints default to selected; MUTATING/DESTRUCTIVE must default to false
+    // SAFE endpoints default to selected (true); mutating/destructive default to false
     const defaultSelected = riskLevel === 'SAFE';
 
     nodeMap.set(id, {
@@ -68,14 +91,30 @@ export function sortEndpoints(endpoints = []) {
     }
   }
 
-  // Priority Queue / Kahn's algorithm
-  // For nodes with inDegree 0:
-  // SAFE methods come first, then alphabetical or original order
+  // Priority Score:
+  // -1: Primary User Login (ALWAYS FIRST to obtain token/session)
+  //  0: Session exchange / replace / refresh
+  //  1: Config / Settings / Metadata
+  //  2: Safe Collection GET
+  //  3: Parameterized GET
+  //  4: Mutating (POST / PUT)
+  //  8: Logout / Teardown
+  //  9: Destructive (DELETE)
   const getPriority = (id) => {
     const node = nodeMap.get(id);
-    if (node.riskLevel === 'SAFE') return 1;
-    if (node.riskLevel === 'MUTATING') return 2;
-    return 3;
+    const p = (node.path || '').toLowerCase();
+    const isPrimaryLogin = isAuthLoginEndpoint(node);
+    const isLogout = p.includes('/logout') || node.id.includes('logout');
+
+    if (isPrimaryLogin) return -1;
+    if (p.includes('/replace') || p.includes('/refresh')) return 0;
+    if (p.includes('/config')) return 1;
+    if (node.riskLevel === 'SAFE' && !p.includes(':') && !p.includes('{')) return 2;
+    if (node.riskLevel === 'SAFE') return 3;
+    if (node.riskLevel === 'MUTATING' && !isLogout) return 4;
+    if (isLogout) return 8;
+    if (node.riskLevel === 'DESTRUCTIVE') return 9;
+    return 5;
   };
 
   const available = [];

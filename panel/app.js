@@ -1,11 +1,17 @@
 let currentManifest = null;
 let eventSource = null;
 let totalSelected = 0;
-let successCount = 0;
-let errorCount = 0;
+let passedCount = 0;
+let failedCount = 0;
+
+// Store execution results for inspection drawer: endpointId -> executionResult
+const executionResults = new Map();
 
 // DOM Elements
 const projectTitle = document.getElementById('project-title');
+const statusPill = document.getElementById('status-pill');
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
+
 const baseUrlInput = document.getElementById('base-url-input');
 const envUrlsSelect = document.getElementById('env-urls-select');
 const authModeSelect = document.getElementById('auth-mode-select');
@@ -15,6 +21,7 @@ const authTokenInput = document.getElementById('auth-token-input');
 const authOtpGroup = document.getElementById('auth-otp-group');
 const authOtpInput = document.getElementById('auth-otp-input');
 
+const endpointSearchInput = document.getElementById('endpoint-search-input');
 const endpointsTbody = document.getElementById('endpoints-tbody');
 const masterCheckbox = document.getElementById('master-checkbox');
 const selectSafeBtn = document.getElementById('select-safe-btn');
@@ -28,39 +35,50 @@ const progressBar = document.getElementById('progress-bar');
 
 const statTotal = document.getElementById('stat-total');
 const statSelected = document.getElementById('stat-selected');
-const statSuccess = document.getElementById('stat-success');
-const statError = document.getElementById('stat-error');
+const statPassed = document.getElementById('stat-passed');
+const statFailed = document.getElementById('stat-failed');
 
-const diagSection = document.getElementById('diagnostics-section');
-const diagCloseBtn = document.getElementById('diag-close-btn');
-const diagCategoryBadge = document.getElementById('diag-category-badge');
-const diagUrl = document.getElementById('diag-url');
-const diagMessage = document.getElementById('diag-message');
-const diagSuggestion = document.getElementById('diag-suggestion');
-const diagFilePath = document.getElementById('diag-file-path');
+// Inspector Drawer Elements
+const inspectorDrawer = document.getElementById('inspector-drawer');
+const closeDrawerBtn = document.getElementById('close-drawer-btn');
+const inspectMethodBadge = document.getElementById('inspect-method-badge');
+const inspectTitle = document.getElementById('inspect-title');
+const inspectDiagCard = document.getElementById('inspect-diag-card');
+const inspectDiagCategory = document.getElementById('inspect-diag-category');
+const inspectDiagMsg = document.getElementById('inspect-diag-msg');
+const inspectDiagFix = document.getElementById('inspect-diag-fix');
+const inspectUrl = document.getElementById('inspect-url');
+const inspectFilePath = document.getElementById('inspect-file-path');
+const inspectReqHeaders = document.getElementById('inspect-req-headers');
+const inspectReqBody = document.getElementById('inspect-req-body');
+const inspectRespStatus = document.getElementById('inspect-resp-status');
+const inspectRespHeaders = document.getElementById('inspect-resp-headers');
+const inspectRespBody = document.getElementById('inspect-resp-body');
 
-const summarySection = document.getElementById('summary-section');
-const summaryMetricsText = document.getElementById('summary-metrics-text');
-const summaryDismissBtn = document.getElementById('summary-dismiss-btn');
-const themeToggleBtn = document.getElementById('theme-toggle');
+// Summary Modal Elements
+const summaryModal = document.getElementById('summary-modal');
+const modalSummaryText = document.getElementById('modal-summary-text');
+const modalDismissBtn = document.getElementById('modal-dismiss-btn');
 
 /**
- * Initializes app state and binds event handlers.
+ * Initializes workbench state and binds event handlers.
  */
 async function initApp() {
   setupTheme();
   setupAuthModeSwitcher();
   setupSelectionHandlers();
   setupExecutionHandlers();
+  setupSearchFilter();
+  setupDrawer();
 
   try {
     const res = await fetch('/api/config');
-    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to load config`);
     currentManifest = await res.json();
     renderManifest(currentManifest);
   } catch (err) {
-    projectTitle.textContent = 'خطا در بارگذاری اطلاعات پروژه';
-    endpointsTbody.innerHTML = `<tr><td colspan="7" class="text-center" style="color:var(--danger)">${err.message}</td></tr>`;
+    projectTitle.textContent = 'Failed to load project manifest';
+    endpointsTbody.innerHTML = `<tr><td colspan="8" class="text-center" style="color:var(--status-failed)">${err.message}</td></tr>`;
   }
 }
 
@@ -68,26 +86,56 @@ async function initApp() {
  * Handles Dark/Light Theme Switching.
  */
 function setupTheme() {
-  const savedTheme = localStorage.getItem('api_tester_theme') || 'theme-light';
+  const savedTheme = localStorage.getItem('api_workbench_theme') || 'theme-dark';
   document.body.className = savedTheme;
 
-  themeToggleBtn.addEventListener('click', () => {
-    const isDark = document.body.classList.contains('theme-dark');
-    const newTheme = isDark ? 'theme-light' : 'theme-dark';
-    document.body.className = newTheme;
-    localStorage.setItem('api_tester_theme', newTheme);
-  });
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      const isDark = document.body.classList.contains('theme-dark');
+      const newTheme = isDark ? 'theme-light' : 'theme-dark';
+      document.body.className = newTheme;
+      localStorage.setItem('api_workbench_theme', newTheme);
+    });
+  }
 }
 
 /**
- * Renders loaded manifest in the UI.
+ * Updates auth input fields based on selected auth mode.
+ */
+function updateAuthVisibility() {
+  const mode = authModeSelect.value;
+  if (mode === 'none') {
+    authTokenGroup.classList.add('hidden');
+    authOtpGroup.classList.add('hidden');
+  } else if (mode === 'two_factor_otp') {
+    authTokenGroup.classList.remove('hidden');
+    authTokenLabel.textContent = 'Token / Password';
+    authOtpGroup.classList.remove('hidden');
+  } else if (mode === 'custom_header') {
+    authTokenGroup.classList.remove('hidden');
+    authTokenLabel.textContent = 'API Key / Secret';
+    authOtpGroup.classList.add('hidden');
+  } else {
+    // bearer_token or login_credentials
+    authTokenGroup.classList.remove('hidden');
+    authTokenLabel.textContent = 'Bearer Token';
+    authOtpGroup.classList.add('hidden');
+  }
+}
+
+function setupAuthModeSwitcher() {
+  authModeSelect.addEventListener('change', updateAuthVisibility);
+}
+
+/**
+ * Renders loaded manifest in the workbench.
  */
 function renderManifest(manifest) {
-  projectTitle.textContent = manifest.projectName || 'پروژه فرانت‌اند';
+  projectTitle.textContent = manifest.projectName || 'Frontend Application';
 
   // Base URLs
   baseUrlInput.value = manifest.defaultBaseUrl || '';
-  envUrlsSelect.innerHTML = '<option value="">-- آدرس‌های محیطی --</option>';
+  envUrlsSelect.innerHTML = '<option value="">-- Discovered Targets --</option>';
   (manifest.baseUrls || []).forEach(url => {
     const opt = document.createElement('option');
     opt.value = url;
@@ -116,39 +164,11 @@ function renderManifest(manifest) {
 }
 
 /**
- * Updates auth input fields based on selected auth mode.
- */
-function updateAuthVisibility() {
-  const mode = authModeSelect.value;
-  if (mode === 'none') {
-    authTokenGroup.classList.add('hidden');
-    authOtpGroup.classList.add('hidden');
-  } else if (mode === 'two_factor_otp') {
-    authTokenGroup.classList.remove('hidden');
-    authTokenLabel.textContent = 'توکن موقت یا اولیه:';
-    authOtpGroup.classList.remove('hidden');
-  } else if (mode === 'custom_header') {
-    authTokenGroup.classList.remove('hidden');
-    authTokenLabel.textContent = 'مقدار کلید (API Key):';
-    authOtpGroup.classList.add('hidden');
-  } else {
-    // bearer_token or login_credentials
-    authTokenGroup.classList.remove('hidden');
-    authTokenLabel.textContent = 'توکن احراز هویت (Bearer):';
-    authOtpGroup.classList.add('hidden');
-  }
-}
-
-function setupAuthModeSwitcher() {
-  authModeSelect.addEventListener('change', updateAuthVisibility);
-}
-
-/**
  * Renders the table of endpoints.
  */
 function renderEndpointsTable(endpoints) {
   if (endpoints.length === 0) {
-    endpointsTbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">هیچ وب‌سرویسی یافت نشد.</td></tr>';
+    endpointsTbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-8">No endpoints discovered in project.</td></tr>';
     updateStats();
     return;
   }
@@ -157,24 +177,43 @@ function renderEndpointsTable(endpoints) {
   endpoints.forEach(ep => {
     const tr = document.createElement('tr');
     tr.id = `row-${ep.id}`;
+    tr.dataset.endpointId = ep.id;
+    tr.dataset.search = `${ep.name} ${ep.path} ${ep.method}`.toLowerCase();
 
     const methodLower = (ep.method || 'get').toLowerCase();
-    const riskBadgeClass = ep.riskLevel === 'SAFE' ? 'badge-risk-safe' : ep.riskLevel === 'MUTATING' ? 'badge-risk-mutating' : 'badge-risk-destructive';
-    const riskLabel = ep.riskLevel === 'SAFE' ? 'ایمن' : ep.riskLevel === 'MUTATING' ? 'نوشتنی' : 'حذف داده';
-    const depsText = (ep.dependsOn && ep.dependsOn.length > 0) ? ep.dependsOn.map(d => `<span class="badge">${d}</span>`).join(' ') : '<span class="text-muted">-</span>';
+    const riskBadgeClass = ep.riskLevel === 'SAFE' 
+      ? 'badge-risk-safe' 
+      : ep.riskLevel === 'MUTATING' 
+        ? 'badge-risk-mutating' 
+        : 'badge-risk-destructive';
+    
+    const riskLabel = ep.riskLevel === 'SAFE' ? 'SAFE' : ep.riskLevel === 'MUTATING' ? 'MUTATING' : 'DESTRUCTIVE';
+
+    const depsText = (ep.dependsOn && ep.dependsOn.length > 0)
+      ? ep.dependsOn.map(d => `<span class="badge text-xs">${d}</span>`).join(' ')
+      : '<span class="text-muted text-xs">None</span>';
 
     tr.innerHTML = `
       <td><input type="checkbox" class="endpoint-checkbox" data-id="${ep.id}" data-risk="${ep.riskLevel}" ${ep.defaultSelected ? 'checked' : ''}></td>
-      <td class="text-center text-muted">${ep.executionOrder || '-'}</td>
+      <td class="text-center text-muted font-mono">${ep.executionOrder || '-'}</td>
       <td><span class="badge badge-method badge-method-${methodLower}">${ep.method}</span></td>
       <td>
-        <strong>${ep.name}</strong>
-        <div class="code-font text-muted text-sm" dir="ltr" style="text-align:right">${ep.path}</div>
+        <div class="endpoint-name">${ep.name}</div>
+        <div class="code-font text-muted text-xs">${ep.path}</div>
       </td>
       <td><span class="badge ${riskBadgeClass}">${riskLabel}</span></td>
       <td>${depsText}</td>
-      <td id="status-${ep.id}" class="status-cell text-muted">-</td>
+      <td id="status-${ep.id}" class="status-cell text-muted"><span class="status-tag status-idle">Pending</span></td>
+      <td class="text-center">
+        <button class="btn btn-sm btn-secondary inspect-btn" data-id="${ep.id}" title="Inspect Request & Response">Inspect</button>
+      </td>
     `;
+
+    // Row click inspect trigger (when clicking inspect button or row)
+    tr.querySelector('.inspect-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openInspector(ep.id);
+    });
 
     endpointsTbody.appendChild(tr);
   });
@@ -183,7 +222,25 @@ function renderEndpointsTable(endpoints) {
 }
 
 /**
- * Sets up checklist buttons.
+ * Filter table rows dynamically based on user search term.
+ */
+function setupSearchFilter() {
+  if (!endpointSearchInput) return;
+  endpointSearchInput.addEventListener('input', () => {
+    const term = endpointSearchInput.value.toLowerCase().trim();
+    const rows = endpointsTbody.querySelectorAll('tr[data-search]');
+    rows.forEach(row => {
+      if (!term || row.dataset.search.includes(term)) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  });
+}
+
+/**
+ * Sets up checklist handlers and metrics recalculation.
  */
 function setupSelectionHandlers() {
   masterCheckbox.addEventListener('change', () => {
@@ -230,25 +287,76 @@ function updateStats() {
 }
 
 /**
+ * Slide-over Inspector Drawer controls
+ */
+function setupDrawer() {
+  closeDrawerBtn.addEventListener('click', () => {
+    inspectorDrawer.classList.add('hidden');
+  });
+
+  modalDismissBtn.addEventListener('click', () => {
+    summaryModal.classList.add('hidden');
+  });
+}
+
+function openInspector(endpointId) {
+  const ep = (currentManifest?.endpoints || []).find(e => e.id === endpointId);
+  if (!ep) return;
+
+  const result = executionResults.get(endpointId);
+
+  inspectMethodBadge.textContent = ep.method;
+  inspectMethodBadge.className = `badge badge-method badge-method-${ep.method.toLowerCase()}`;
+  inspectTitle.textContent = `${ep.name} (${ep.path})`;
+
+  if (result) {
+    inspectUrl.textContent = result.url || '-';
+    inspectFilePath.textContent = result.savedFilePath || 'In-memory / Unsaved';
+    inspectReqHeaders.textContent = JSON.stringify(result.requestHeaders || {}, null, 2);
+    inspectReqBody.textContent = result.requestBody ? JSON.stringify(result.requestBody, null, 2) : 'None';
+    
+    inspectRespStatus.textContent = result.httpStatus ? `HTTP ${result.httpStatus} (${result.latencyMs}ms)` : 'Network Error';
+    inspectRespStatus.className = result.success ? 'status-badge badge-risk-safe' : 'status-badge badge-risk-destructive';
+
+    inspectRespHeaders.textContent = JSON.stringify(result.responseHeaders || {}, null, 2);
+    inspectRespBody.textContent = result.responseBody ? JSON.stringify(result.responseBody, null, 2) : 'No response content';
+
+    if (result.diagnostics) {
+      inspectDiagCard.classList.remove('hidden');
+      inspectDiagCategory.textContent = result.diagnostics.category;
+      inspectDiagMsg.textContent = result.diagnostics.message;
+      inspectDiagFix.textContent = result.diagnostics.suggestedFix;
+    } else {
+      inspectDiagCard.classList.add('hidden');
+    }
+  } else {
+    // Has not been run yet
+    inspectUrl.textContent = `${baseUrlInput.value.replace(/\/+$/, '')}${ep.path.startsWith('/') ? '' : '/'}${ep.path}`;
+    inspectFilePath.textContent = 'Not executed yet';
+    inspectReqHeaders.textContent = JSON.stringify(ep.defaultHeaders || {}, null, 2);
+    inspectReqBody.textContent = ep.defaultBody ? JSON.stringify(ep.defaultBody, null, 2) : 'None';
+    inspectRespStatus.textContent = 'Not Executed';
+    inspectRespStatus.className = 'status-badge';
+    inspectRespHeaders.textContent = '{}';
+    inspectRespBody.textContent = 'Run this endpoint to capture live response.';
+    inspectDiagCard.classList.add('hidden');
+  }
+
+  inspectorDrawer.classList.remove('hidden');
+}
+
+/**
  * Handles test run start, stop, and SSE streaming.
  */
 function setupExecutionHandlers() {
   startTestBtn.addEventListener('click', startTestExecution);
   stopTestBtn.addEventListener('click', stopTestExecution);
-
-  diagCloseBtn.addEventListener('click', () => {
-    diagSection.classList.add('hidden');
-  });
-
-  summaryDismissBtn.addEventListener('click', () => {
-    summarySection.classList.add('hidden');
-  });
 }
 
 async function startTestExecution() {
   const baseUrl = baseUrlInput.value.trim();
   if (!baseUrl) {
-    alert('لطفاً آدرس پایه (Base URL) را وارد کنید.');
+    alert('Please enter a target Base URL.');
     return;
   }
 
@@ -256,20 +364,19 @@ async function startTestExecution() {
     .map(cb => cb.dataset.id);
 
   if (selectedIds.length === 0) {
-    alert('حداقل یک وب‌سرویس را برای تست انتخاب کنید.');
+    alert('Please select at least one endpoint to test.');
     return;
   }
 
-  // Reset status indicators
-  successCount = 0;
-  errorCount = 0;
-  statSuccess.textContent = '0';
-  statError.textContent = '0';
-  diagSection.classList.add('hidden');
-  summarySection.classList.add('hidden');
+  // Reset counters & state
+  passedCount = 0;
+  failedCount = 0;
+  statPassed.textContent = '0';
+  statFailed.textContent = '0';
+  executionResults.clear();
 
   document.querySelectorAll('.status-cell').forEach(cell => {
-    cell.innerHTML = '<span class="text-muted">-</span>';
+    cell.innerHTML = '<span class="status-tag status-idle">Pending</span>';
   });
 
   const authPayload = {
@@ -283,8 +390,10 @@ async function startTestExecution() {
   stopTestBtn.classList.remove('hidden');
   progressContainer.classList.remove('hidden');
   progressBar.style.width = '0%';
+  statusPill.textContent = '● Running...';
+  statusPill.className = 'pill pill-running';
 
-  // Connect to SSE stream
+  // Connect SSE
   connectSSE();
 
   try {
@@ -300,11 +409,11 @@ async function startTestExecution() {
 
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.error || 'خطا در شروع تست');
+      throw new Error(err.error || 'Failed to start test execution');
     }
   } catch (err) {
-    alert(`شروع تست با خطا مواجه شد: ${err.message}`);
-    finishExecutionUI();
+    alert(`Execution failed: ${err.message}`);
+    finishExecutionUI('error');
   }
 }
 
@@ -314,7 +423,7 @@ async function stopTestExecution() {
   } catch (err) {
     console.error(err);
   }
-  finishExecutionUI();
+  finishExecutionUI('aborted');
 }
 
 function connectSSE() {
@@ -328,39 +437,40 @@ function connectSSE() {
     const data = JSON.parse(e.data);
     const cell = document.getElementById(`status-${data.endpointId}`);
     if (cell) {
-      cell.innerHTML = '<span class="status-tag"><span class="status-spinner"></span> در حال اجرا...</span>';
+      cell.innerHTML = '<span class="status-tag status-running"><span class="status-spinner"></span> Running...</span>';
     }
   });
 
   eventSource.addEventListener('step_finish', (e) => {
     const data = JSON.parse(e.data);
+    executionResults.set(data.endpointId, data);
+
     const cell = document.getElementById(`status-${data.endpointId}`);
 
     if (data.success) {
-      successCount++;
-      statSuccess.textContent = successCount;
+      passedCount++;
+      statPassed.textContent = passedCount;
       if (cell) {
-        cell.innerHTML = `<span class="status-tag status-passed">✓ ${data.httpStatus} <span class="badge text-sm">${data.latencyMs}ms</span></span>`;
+        cell.innerHTML = `<span class="status-tag status-passed">✓ ${data.httpStatus} <span class="badge text-xs">${data.latencyMs}ms</span></span>`;
       }
     } else {
-      errorCount++;
-      statError.textContent = errorCount;
+      failedCount++;
+      statFailed.textContent = failedCount;
       if (cell) {
-        cell.innerHTML = `<span class="status-tag status-failed">✗ ${data.httpStatus || 'ERR'} <span class="badge text-sm">${data.latencyMs}ms</span></span>`;
+        cell.innerHTML = `<span class="status-tag status-failed">✗ ${data.httpStatus || 'ERR'} <span class="badge text-xs">${data.latencyMs}ms</span></span>`;
       }
-      showDiagnostics(data);
     }
 
     // Update progress
-    const completed = successCount + errorCount;
+    const completed = passedCount + failedCount;
     const pct = Math.min(100, Math.round((completed / (totalSelected || 1)) * 100));
     progressBar.style.width = `${pct}%`;
   });
 
   eventSource.addEventListener('run_complete', (e) => {
     const data = JSON.parse(e.data);
-    finishExecutionUI();
-    showSummary(data);
+    finishExecutionUI(data.status);
+    showSummaryModal();
     if (eventSource) {
       eventSource.close();
       eventSource = null;
@@ -368,38 +478,34 @@ function connectSSE() {
   });
 
   eventSource.onerror = () => {
-    // Graceful reconnect handled by browser
+    // SSE auto-reconnect handled by browser
   };
 }
 
-function showDiagnostics(data) {
-  diagSection.classList.remove('hidden');
-  diagUrl.textContent = `${data.method} ${data.url}`;
-  diagFilePath.textContent = data.savedFilePath || '';
-
-  if (data.diagnostics) {
-    diagCategoryBadge.textContent = data.diagnostics.category;
-    diagMessage.textContent = data.diagnostics.message;
-    diagSuggestion.textContent = data.diagnostics.suggestedFix;
-  } else {
-    diagCategoryBadge.textContent = `STATUS_${data.httpStatus}`;
-    diagMessage.textContent = `پاسخ با کد ${data.httpStatus} خاتمه یافت.`;
-    diagSuggestion.textContent = 'فایل پاسخ را بررسی نمایید.';
-  }
-}
-
-function showSummary(data) {
-  summarySection.classList.remove('hidden');
-  summaryMetricsText.innerHTML = `
-    تعداد کل تست‌های اجراشده: <strong>${successCount + errorCount}</strong> | 
-    موفق: <span style="color:var(--success)">${successCount}</span> | 
-    ناموفق: <span style="color:var(--danger)">${errorCount}</span>
+function showSummaryModal() {
+  const total = passedCount + failedCount;
+  modalSummaryText.innerHTML = `
+    Executed <strong>${total}</strong> selected endpoints.<br>
+    Passed: <strong style="color:var(--status-passed)">${passedCount}</strong> | 
+    Failed: <strong style="color:var(--status-failed)">${failedCount}</strong>
   `;
+  summaryModal.classList.remove('hidden');
 }
 
-function finishExecutionUI() {
+function finishExecutionUI(status = 'completed') {
   startTestBtn.classList.remove('hidden');
   stopTestBtn.classList.add('hidden');
+  
+  if (status === 'aborted') {
+    statusPill.textContent = '● Aborted';
+    statusPill.className = 'pill pill-aborted';
+  } else if (status === 'error') {
+    statusPill.textContent = '● Error';
+    statusPill.className = 'pill pill-error';
+  } else {
+    statusPill.textContent = '● Ready';
+    statusPill.className = 'pill pill-idle';
+  }
 }
 
 // Kick off
