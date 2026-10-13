@@ -4,29 +4,61 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>API Tester - Discovery & Automated Testing Workbench</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="theme-dark">
   <div class="workbench-layout">
-    <!-- Top Navigation Bar -->
+    <!-- Top Navigation Header -->
     <header class="workbench-header">
       <div class="brand-group">
-        <div class="brand-badge">⚡ API TESTER WORKBENCH</div>
-        <h1 id="project-title" class="project-name">Loading project...</h1>
-        <span id="status-pill" class="pill pill-idle">● Ready</span>
+        <div class="brand-icon-wrapper">
+          <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <div class="brand-meta">
+            <span class="brand-badge">API TESTER</span>
+            <span id="status-pill" class="pill pill-idle">
+              <span class="status-dot"></span> Ready
+            </span>
+          </div>
+          <h1 id="project-title" class="project-name">Loading project...</h1>
+        </div>
       </div>
+
       <div class="header-tools">
-        <button id="theme-toggle-btn" class="btn btn-secondary btn-icon" title="Toggle Dark/Light Mode">🌓</button>
+        <button id="theme-toggle-btn" class="btn btn-secondary btn-icon" title="Toggle Light / Dark Mode" aria-label="Toggle Theme">
+          <svg class="theme-icon icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <svg class="theme-icon icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
       </div>
     </header>
 
     <!-- Main Workspace -->
     <main class="workbench-main">
-      <!-- Target & Auth Config Card -->
+      <!-- Target & Authentication Card -->
       <section class="card config-card">
         <div class="card-header">
-          <h2 class="card-title">Connection & Authentication</h2>
-          <span class="text-muted text-xs">Configure base target and access credentials</span>
+          <div>
+            <h2 class="card-title">Connection & Authentication</h2>
+            <p class="card-subtitle">Set backend host URL and configure authentication credentials.</p>
+          </div>
         </div>
         
         <div class="config-grid">
@@ -34,93 +66,136 @@
           <div class="form-group span-2">
             <label for="base-url-input">Target Base URL</label>
             <div class="input-with-select">
-              <input type="text" id="base-url-input" placeholder="https://api.example.com" class="code-input">
-              <select id="env-urls-select" title="Detected target environments">
+              <input type="text" id="base-url-input" placeholder="https://api.example.com" class="form-control font-mono">
+              <select id="env-urls-select" class="form-control select-env" title="Detected backend host environments">
                 <option value="">-- Discovered Targets --</option>
               </select>
             </div>
           </div>
 
-          <!-- Auth Mode -->
+          <!-- Auth Mode Dropdown -->
           <div class="form-group">
             <label for="auth-mode-select">Authentication Mode</label>
-            <select id="auth-mode-select">
+            <select id="auth-mode-select" class="form-control">
               <option value="bearer_token">Bearer Token</option>
               <option value="custom_header">API Key / Custom Header</option>
               <option value="two_factor_otp">Two-Factor OTP / MFA</option>
               <option value="login_credentials">Username & Password</option>
-              <option value="none">No Auth (Public)</option>
+              <option value="none">Public (No Auth)</option>
             </select>
           </div>
 
-          <!-- Header Name & Secret Input -->
-          <div class="form-group" id="auth-token-group">
-            <label id="auth-token-label" for="auth-token-input">Token / Secret</label>
-            <input type="password" id="auth-token-input" placeholder="Enter token or authorization secret..." class="code-input">
+          <!-- Dynamic Field 1 (e.g. Header Name or Username) -->
+          <div class="form-group" id="auth-field-1-group">
+            <label id="auth-field-1-label" for="auth-field-1-input">Header Name</label>
+            <input type="text" id="auth-field-1-input" placeholder="Authorization" class="form-control font-mono">
           </div>
 
-          <!-- 2FA / OTP Code (conditional) -->
-          <div class="form-group hidden" id="auth-otp-group">
-            <label for="auth-otp-input">2FA / OTP Code</label>
-            <input type="text" id="auth-otp-input" placeholder="123456" maxlength="8" class="code-input text-center">
+          <!-- Dynamic Field 2 (e.g. Token Secret or Password or OTP) -->
+          <div class="form-group" id="auth-field-2-group">
+            <label id="auth-field-2-label" for="auth-field-2-input">Token Secret</label>
+            <input type="password" id="auth-field-2-input" placeholder="Enter token value..." class="form-control font-mono">
+          </div>
+
+          <!-- Public / No Auth Notice (Shown when 'none' is selected) -->
+          <div class="form-group span-2 hidden" id="auth-notice-group">
+            <div class="auth-notice-box">
+              <svg class="notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              <span>Public access enabled. Endpoints will be called without authorization headers.</span>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- Action & Filter Bar -->
-      <section class="toolbar-card">
-        <!-- Search & Filters -->
-        <div class="search-filter-box">
-          <input type="text" id="endpoint-search-input" placeholder="Search endpoints by path or name..." class="search-input">
+      <!-- Action & Toolbar Card -->
+      <section class="card toolbar-card">
+        <div class="toolbar-flex">
+          <!-- Search Box -->
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="endpoint-search-input" placeholder="Filter endpoints by path, name, or method..." class="form-control search-input">
+          </div>
+
+          <!-- Quick Select Filters -->
+          <div class="selection-actions">
+            <button id="select-safe-btn" class="btn btn-secondary btn-sm" title="Select Safe GET requests">Safe (GET)</button>
+            <button id="select-all-btn" class="btn btn-secondary btn-sm" title="Select All">Select All</button>
+            <button id="deselect-all-btn" class="btn btn-secondary btn-sm" title="Clear All Selections">Clear</button>
+          </div>
+
+          <!-- Realtime Metrics Pills -->
+          <div class="metrics-deck">
+            <div class="metric-pill">
+              <span class="metric-label">Total</span>
+              <strong id="stat-total" class="metric-val">0</strong>
+            </div>
+            <div class="metric-pill metric-selected">
+              <span class="metric-label">Selected</span>
+              <strong id="stat-selected" class="metric-val">0</strong>
+            </div>
+            <div class="metric-pill metric-passed">
+              <span class="metric-label">Passed</span>
+              <strong id="stat-passed" class="metric-val">0</strong>
+            </div>
+            <div class="metric-pill metric-failed">
+              <span class="metric-label">Failed</span>
+              <strong id="stat-failed" class="metric-val">0</strong>
+            </div>
+          </div>
+
+          <!-- Execution Triggers -->
+          <div class="trigger-actions">
+            <button id="start-test-btn" class="btn btn-primary btn-run">
+              <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Run Selected
+            </button>
+            <button id="stop-test-btn" class="btn btn-danger btn-stop hidden">
+              <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12"></rect>
+              </svg>
+              Abort Run
+            </button>
+          </div>
         </div>
 
-        <div class="selection-buttons">
-          <button id="select-safe-btn" class="btn btn-sm btn-secondary">Select Safe (GET)</button>
-          <button id="select-all-btn" class="btn btn-sm btn-secondary">Select All</button>
-          <button id="deselect-all-btn" class="btn btn-sm btn-secondary">Clear</button>
-        </div>
-
-        <!-- Metrics Pills -->
-        <div class="metrics-group">
-          <span class="metric-pill">Total: <strong id="stat-total">0</strong></span>
-          <span class="metric-pill metric-selected">Selected: <strong id="stat-selected">0</strong></span>
-          <span class="metric-pill metric-passed">Passed: <strong id="stat-passed">0</strong></span>
-          <span class="metric-pill metric-failed">Failed: <strong id="stat-failed">0</strong></span>
-        </div>
-
-        <!-- Execution Triggers -->
-        <div class="trigger-group">
-          <button id="start-test-btn" class="btn btn-primary btn-run">▶ Run Selected</button>
-          <button id="stop-test-btn" class="btn btn-danger btn-stop hidden">⏹ Abort Execution</button>
+        <!-- Live Progress Indicator -->
+        <div id="progress-container" class="progress-wrapper hidden">
+          <div class="progress-track">
+            <div id="progress-bar" class="progress-fill" style="width: 0%"></div>
+          </div>
         </div>
       </section>
 
-      <!-- Live Progress Bar -->
-      <div id="progress-container" class="progress-bar-container hidden">
-        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
-      </div>
-
-      <!-- Endpoints Sequence Table -->
+      <!-- Endpoints Sequence Table Card -->
       <section class="card table-card">
-        <div class="card-header">
+        <div class="card-header table-card-header">
           <div>
             <h2 class="card-title">Endpoint Execution Sequence</h2>
-            <p class="text-muted text-xs">Topologically ordered by dependency graph. Login & Auth are prioritized at #1.</p>
+            <p class="card-subtitle">Topologically ordered by dependency DAG. Primary Login & Auth endpoints are strictly prioritized at #1.</p>
           </div>
         </div>
 
-        <div class="table-container">
+        <div class="table-responsive">
           <table class="endpoints-table">
             <thead>
               <tr>
-                <th width="40"><input type="checkbox" id="master-checkbox"></th>
-                <th width="50">#</th>
-                <th width="80">Method</th>
-                <th>Endpoint Path & Description</th>
-                <th width="110">Risk</th>
-                <th width="140">Prerequisites</th>
-                <th width="150">Status</th>
-                <th width="80">Inspect</th>
+                <th class="th-cb"><input type="checkbox" id="master-checkbox" aria-label="Select or deselect all"></th>
+                <th class="th-num">#</th>
+                <th class="th-method">Method</th>
+                <th class="th-endpoint">Endpoint Path & Action</th>
+                <th class="th-risk">Risk</th>
+                <th class="th-deps">Prerequisites</th>
+                <th class="th-status">Live Status</th>
+                <th class="th-inspect">Inspect</th>
               </tr>
             </thead>
             <tbody id="endpoints-tbody">
@@ -134,77 +209,94 @@
     </main>
 
     <!-- Slide-over Inspector Drawer -->
-    <aside id="inspector-drawer" class="inspector-drawer hidden">
+    <aside id="inspector-drawer" class="inspector-drawer hidden" aria-labelledby="inspect-title">
       <div class="drawer-header">
-        <div class="drawer-title-group">
+        <div class="drawer-title-wrapper">
           <span id="inspect-method-badge" class="badge badge-get">GET</span>
           <h3 id="inspect-title" class="drawer-title">Endpoint Details</h3>
         </div>
-        <button id="close-drawer-btn" class="btn btn-sm btn-secondary btn-icon">✕</button>
+        <button id="close-drawer-btn" class="btn btn-secondary btn-icon btn-sm" title="Close Drawer" aria-label="Close Inspector">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </div>
 
-      <div class="drawer-content">
-        <!-- Diagnostic Alert (if failed) -->
-        <div id="inspect-diag-card" class="diag-alert hidden">
-          <div class="diag-alert-header">
+      <div class="drawer-body">
+        <!-- Root Cause Diagnostic Alert (Shown on failure) -->
+        <div id="inspect-diag-card" class="diag-card hidden">
+          <div class="diag-header">
             <span id="inspect-diag-category" class="diag-chip">AUTH_ERROR</span>
-            <span class="text-xs text-muted">Root Cause Diagnosis</span>
+            <span class="diag-label">Root Cause Diagnostic</span>
           </div>
-          <p id="inspect-diag-msg" class="diag-desc"></p>
-          <div class="diag-recommendation">
-            <strong>Recommended Action:</strong>
-            <p id="inspect-diag-fix"></p>
-          </div>
-        </div>
-
-        <!-- Request Section -->
-        <div class="inspector-section">
-          <h4 class="section-subtitle">Request Details</h4>
-          <div class="meta-row">
-            <span class="meta-label">Full URL:</span>
-            <code id="inspect-url" class="code-val">-</code>
-          </div>
-          <div class="meta-row">
-            <span class="meta-label">Saved Response File:</span>
-            <code id="inspect-file-path" class="code-val">-</code>
-          </div>
-
-          <h5 class="subsection-title">Request Headers</h5>
-          <pre id="inspect-req-headers" class="code-block">{}</pre>
-
-          <div id="inspect-req-body-wrapper">
-            <h5 class="subsection-title">Request Body</h5>
-            <pre id="inspect-req-body" class="code-block">null</pre>
+          <p id="inspect-diag-msg" class="diag-msg"></p>
+          <div class="diag-fix-box">
+            <strong>Recommended Fix:</strong>
+            <p id="inspect-diag-fix" class="diag-fix"></p>
           </div>
         </div>
 
-        <!-- Response Section -->
-        <div class="inspector-section">
-          <div class="section-header-flex">
-            <h4 class="section-subtitle">Server Response</h4>
+        <!-- Request Details Section -->
+        <div class="drawer-section">
+          <h4 class="section-title">Request Specification</h4>
+          <div class="prop-row">
+            <span class="prop-key">Target URL:</span>
+            <code id="inspect-url" class="code-pill">-</code>
+          </div>
+          <div class="prop-row">
+            <span class="prop-key">Saved Output:</span>
+            <code id="inspect-file-path" class="code-pill">-</code>
+          </div>
+
+          <div class="code-group">
+            <div class="code-group-header">Request Headers</div>
+            <pre id="inspect-req-headers" class="code-block font-mono">{}</pre>
+          </div>
+
+          <div class="code-group">
+            <div class="code-group-header">Request Body</div>
+            <pre id="inspect-req-body" class="code-block font-mono">None</pre>
+          </div>
+        </div>
+
+        <!-- Response Details Section -->
+        <div class="drawer-section">
+          <div class="section-flex-header">
+            <h4 class="section-title">Server Response</h4>
             <span id="inspect-resp-status" class="status-badge">-</span>
           </div>
-          
-          <h5 class="subsection-title">Response Headers</h5>
-          <pre id="inspect-resp-headers" class="code-block">{}</pre>
 
-          <h5 class="subsection-title">Response Body</h5>
-          <pre id="inspect-resp-body" class="code-block">No response received yet.</pre>
+          <div class="code-group">
+            <div class="code-group-header">Response Headers</div>
+            <pre id="inspect-resp-headers" class="code-block font-mono">{}</pre>
+          </div>
+
+          <div class="code-group">
+            <div class="code-group-header">Response Body</div>
+            <pre id="inspect-resp-body" class="code-block font-mono">No response received yet.</pre>
+          </div>
         </div>
       </div>
     </aside>
 
     <!-- Run Summary Modal -->
-    <div id="summary-modal" class="modal-backdrop hidden">
+    <div id="summary-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
       <div class="modal-card">
         <div class="modal-header">
-          <h3>🎉 Test Run Completed</h3>
+          <div class="modal-icon-success">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+          </div>
+          <h3 class="modal-title">Test Run Completed</h3>
         </div>
         <div class="modal-body">
-          <p id="modal-summary-text"></p>
-          <div class="storage-notice">
-            All raw JSON responses were saved to:
-            <code>.api-tester/responses/</code>
+          <p id="modal-summary-text" class="modal-text"></p>
+          <div class="storage-callout">
+            <span>Isolated response files saved to:</span>
+            <code class="font-mono">.api-tester/responses/</code>
           </div>
         </div>
         <div class="modal-footer">

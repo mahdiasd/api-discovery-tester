@@ -301,9 +301,24 @@ export async function runTests({
 
     if (auth && auth.mode === 'bearer_token' && auth.token) {
       const prefix = auth.headerPrefix !== undefined ? auth.headerPrefix : 'Bearer ';
-      headers[auth.headerName || 'Authorization'] = `${prefix}${auth.token}`;
+      const tokenVal = auth.token.startsWith(prefix) ? auth.token : `${prefix}${auth.token}`;
+      headers[auth.headerName || 'Authorization'] = tokenVal;
     } else if (auth && auth.mode === 'custom_header' && auth.token) {
       headers[auth.headerName || 'X-API-Key'] = auth.token;
+    } else if (auth && auth.mode === 'two_factor_otp') {
+      if (auth.token) {
+        const prefix = auth.headerPrefix !== undefined ? auth.headerPrefix : 'Bearer ';
+        headers[auth.headerName || 'Authorization'] = auth.token.startsWith(prefix) ? auth.token : `${prefix}${auth.token}`;
+      }
+      if (auth.otpCode) {
+        headers['X-OTP-Code'] = auth.otpCode;
+        headers['X-2FA-Code'] = auth.otpCode;
+      }
+    } else if (auth && auth.mode === 'login_credentials') {
+      if (auth.username && auth.password) {
+        const encoded = Buffer.from(`${auth.username}:${auth.password}`).toString('base64');
+        headers['Authorization'] = `Basic ${encoded}`;
+      }
     }
 
     // Execute Request

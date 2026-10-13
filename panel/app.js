@@ -7,20 +7,27 @@ let failedCount = 0;
 // Store execution results for inspection drawer: endpointId -> executionResult
 const executionResults = new Map();
 
-// DOM Elements
+// Top DOM Elements
 const projectTitle = document.getElementById('project-title');
 const statusPill = document.getElementById('status-pill');
 const themeToggleBtn = document.getElementById('theme-toggle-btn');
 
+// Connection & Auth Elements
 const baseUrlInput = document.getElementById('base-url-input');
 const envUrlsSelect = document.getElementById('env-urls-select');
 const authModeSelect = document.getElementById('auth-mode-select');
-const authTokenGroup = document.getElementById('auth-token-group');
-const authTokenLabel = document.getElementById('auth-token-label');
-const authTokenInput = document.getElementById('auth-token-input');
-const authOtpGroup = document.getElementById('auth-otp-group');
-const authOtpInput = document.getElementById('auth-otp-input');
 
+const authField1Group = document.getElementById('auth-field-1-group');
+const authField1Label = document.getElementById('auth-field-1-label');
+const authField1Input = document.getElementById('auth-field-1-input');
+
+const authField2Group = document.getElementById('auth-field-2-group');
+const authField2Label = document.getElementById('auth-field-2-label');
+const authField2Input = document.getElementById('auth-field-2-input');
+
+const authNoticeGroup = document.getElementById('auth-notice-group');
+
+// Toolbar & Filter Elements
 const endpointSearchInput = document.getElementById('endpoint-search-input');
 const endpointsTbody = document.getElementById('endpoints-tbody');
 const masterCheckbox = document.getElementById('master-checkbox');
@@ -78,12 +85,12 @@ async function initApp() {
     renderManifest(currentManifest);
   } catch (err) {
     projectTitle.textContent = 'Failed to load project manifest';
-    endpointsTbody.innerHTML = `<tr><td colspan="8" class="text-center" style="color:var(--status-failed)">${err.message}</td></tr>`;
+    endpointsTbody.innerHTML = `<tr><td colspan="8" class="text-center" style="color:var(--color-danger)">${err.message}</td></tr>`;
   }
 }
 
 /**
- * Handles Dark/Light Theme Switching.
+ * Handles Dark/Light Theme Switching with smooth transition.
  */
 function setupTheme() {
   const savedTheme = localStorage.getItem('api_workbench_theme') || 'theme-dark';
@@ -100,26 +107,59 @@ function setupTheme() {
 }
 
 /**
- * Updates auth input fields based on selected auth mode.
+ * Updates dynamic paired auth input fields based on selected auth mode.
  */
 function updateAuthVisibility() {
   const mode = authModeSelect.value;
+
   if (mode === 'none') {
-    authTokenGroup.classList.add('hidden');
-    authOtpGroup.classList.add('hidden');
-  } else if (mode === 'two_factor_otp') {
-    authTokenGroup.classList.remove('hidden');
-    authTokenLabel.textContent = 'Token / Password';
-    authOtpGroup.classList.remove('hidden');
+    authField1Group.classList.add('hidden');
+    authField2Group.classList.add('hidden');
+    authNoticeGroup.classList.remove('hidden');
+    return;
+  }
+
+  authNoticeGroup.classList.add('hidden');
+  authField1Group.classList.remove('hidden');
+  authField2Group.classList.remove('hidden');
+
+  if (mode === 'bearer_token') {
+    authField1Label.textContent = 'Header Name';
+    authField1Input.placeholder = 'Authorization';
+    authField1Input.type = 'text';
+    if (!authField1Input.value) authField1Input.value = 'Authorization';
+
+    authField2Label.textContent = 'Bearer Token';
+    authField2Input.placeholder = 'eyJhbGci... or token secret';
+    authField2Input.type = 'password';
+
   } else if (mode === 'custom_header') {
-    authTokenGroup.classList.remove('hidden');
-    authTokenLabel.textContent = 'API Key / Secret';
-    authOtpGroup.classList.add('hidden');
-  } else {
-    // bearer_token or login_credentials
-    authTokenGroup.classList.remove('hidden');
-    authTokenLabel.textContent = 'Bearer Token';
-    authOtpGroup.classList.add('hidden');
+    authField1Label.textContent = 'Header Key';
+    authField1Input.placeholder = 'X-API-Key';
+    authField1Input.type = 'text';
+    if (!authField1Input.value) authField1Input.value = 'X-API-Key';
+
+    authField2Label.textContent = 'Key Secret';
+    authField2Input.placeholder = 'sec_live_... or API secret';
+    authField2Input.type = 'password';
+
+  } else if (mode === 'two_factor_otp') {
+    authField1Label.textContent = 'Access Token / Secret';
+    authField1Input.placeholder = 'Primary Bearer Token or Password';
+    authField1Input.type = 'password';
+
+    authField2Label.textContent = '2FA / OTP Code';
+    authField2Input.placeholder = '123456';
+    authField2Input.type = 'text';
+
+  } else if (mode === 'login_credentials') {
+    authField1Label.textContent = 'Username / Identifier';
+    authField1Input.placeholder = 'user@example.com or mobile';
+    authField1Input.type = 'text';
+
+    authField2Label.textContent = 'Password';
+    authField2Input.placeholder = '••••••••';
+    authField2Input.type = 'password';
   }
 }
 
@@ -151,10 +191,19 @@ function renderManifest(manifest) {
 
   // Auth setup
   if (manifest.auth) {
-    authModeSelect.value = manifest.auth.mode || 'bearer_token';
-    authTokenInput.value = manifest.auth.token || '';
-    if (manifest.auth.requiresOtp) {
+    const mode = manifest.auth.mode || 'bearer_token';
+    authModeSelect.value = mode;
+
+    if (mode === 'custom_header') {
+      authField1Input.value = manifest.auth.headerName || 'X-API-Key';
+      authField2Input.value = manifest.auth.token || '';
+    } else if (mode === 'bearer_token') {
+      authField1Input.value = manifest.auth.headerName || 'Authorization';
+      authField2Input.value = manifest.auth.token || '';
+    } else if (manifest.auth.requiresOtp) {
       authModeSelect.value = 'two_factor_otp';
+      authField1Input.value = manifest.auth.token || '';
+      authField2Input.value = '';
     }
     updateAuthVisibility();
   }
@@ -194,7 +243,7 @@ function renderEndpointsTable(endpoints) {
       : '<span class="text-muted text-xs">None</span>';
 
     tr.innerHTML = `
-      <td><input type="checkbox" class="endpoint-checkbox" data-id="${ep.id}" data-risk="${ep.riskLevel}" ${ep.defaultSelected ? 'checked' : ''}></td>
+      <td><input type="checkbox" class="endpoint-checkbox" data-id="${ep.id}" data-risk="${ep.riskLevel}" ${ep.defaultSelected ? 'checked' : ''} aria-label="Select endpoint"></td>
       <td class="text-center text-muted font-mono">${ep.executionOrder || '-'}</td>
       <td><span class="badge badge-method badge-method-${methodLower}">${ep.method}</span></td>
       <td>
@@ -205,11 +254,11 @@ function renderEndpointsTable(endpoints) {
       <td>${depsText}</td>
       <td id="status-${ep.id}" class="status-cell text-muted"><span class="status-tag status-idle">Pending</span></td>
       <td class="text-center">
-        <button class="btn btn-sm btn-secondary inspect-btn" data-id="${ep.id}" title="Inspect Request & Response">Inspect</button>
+        <button class="btn btn-secondary btn-sm inspect-btn" data-id="${ep.id}" title="Inspect Request & Response">Inspect</button>
       </td>
     `;
 
-    // Row click inspect trigger (when clicking inspect button or row)
+    // Row click inspect trigger
     tr.querySelector('.inspect-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       openInspector(ep.id);
@@ -316,7 +365,7 @@ function openInspector(endpointId) {
     inspectReqBody.textContent = result.requestBody ? JSON.stringify(result.requestBody, null, 2) : 'None';
     
     inspectRespStatus.textContent = result.httpStatus ? `HTTP ${result.httpStatus} (${result.latencyMs}ms)` : 'Network Error';
-    inspectRespStatus.className = result.success ? 'status-badge badge-risk-safe' : 'status-badge badge-risk-destructive';
+    inspectRespStatus.className = result.success ? 'status-tag status-passed' : 'status-tag status-failed';
 
     inspectRespHeaders.textContent = JSON.stringify(result.responseHeaders || {}, null, 2);
     inspectRespBody.textContent = result.responseBody ? JSON.stringify(result.responseBody, null, 2) : 'No response content';
@@ -336,7 +385,7 @@ function openInspector(endpointId) {
     inspectReqHeaders.textContent = JSON.stringify(ep.defaultHeaders || {}, null, 2);
     inspectReqBody.textContent = ep.defaultBody ? JSON.stringify(ep.defaultBody, null, 2) : 'None';
     inspectRespStatus.textContent = 'Not Executed';
-    inspectRespStatus.className = 'status-badge';
+    inspectRespStatus.className = 'status-tag status-idle';
     inspectRespHeaders.textContent = '{}';
     inspectRespBody.textContent = 'Run this endpoint to capture live response.';
     inspectDiagCard.classList.add('hidden');
@@ -379,18 +428,32 @@ async function startTestExecution() {
     cell.innerHTML = '<span class="status-tag status-idle">Pending</span>';
   });
 
-  const authPayload = {
-    mode: authModeSelect.value,
-    token: authTokenInput.value.trim(),
-    otpCode: authOtpInput.value.trim() || null
-  };
+  const mode = authModeSelect.value;
+  const f1 = authField1Input.value.trim();
+  const f2 = authField2Input.value.trim();
 
-  // Switch UI to running
+  let authPayload = { mode };
+
+  if (mode === 'bearer_token') {
+    authPayload.headerName = f1 || 'Authorization';
+    authPayload.token = f2;
+  } else if (mode === 'custom_header') {
+    authPayload.headerName = f1 || 'X-API-Key';
+    authPayload.token = f2;
+  } else if (mode === 'two_factor_otp') {
+    authPayload.token = f1;
+    authPayload.otpCode = f2;
+  } else if (mode === 'login_credentials') {
+    authPayload.username = f1;
+    authPayload.password = f2;
+  }
+
+  // Switch UI to running state
   startTestBtn.classList.add('hidden');
   stopTestBtn.classList.remove('hidden');
   progressContainer.classList.remove('hidden');
   progressBar.style.width = '0%';
-  statusPill.textContent = '● Running...';
+  statusPill.innerHTML = '<span class="status-dot"></span> Running...';
   statusPill.className = 'pill pill-running';
 
   // Connect SSE
@@ -478,7 +541,7 @@ function connectSSE() {
   });
 
   eventSource.onerror = () => {
-    // SSE auto-reconnect handled by browser
+    // Reconnect handled by browser
   };
 }
 
@@ -486,8 +549,8 @@ function showSummaryModal() {
   const total = passedCount + failedCount;
   modalSummaryText.innerHTML = `
     Executed <strong>${total}</strong> selected endpoints.<br>
-    Passed: <strong style="color:var(--status-passed)">${passedCount}</strong> | 
-    Failed: <strong style="color:var(--status-failed)">${failedCount}</strong>
+    Passed: <strong style="color:var(--color-success)">${passedCount}</strong> | 
+    Failed: <strong style="color:var(--color-danger)">${failedCount}</strong>
   `;
   summaryModal.classList.remove('hidden');
 }
@@ -497,13 +560,13 @@ function finishExecutionUI(status = 'completed') {
   stopTestBtn.classList.add('hidden');
   
   if (status === 'aborted') {
-    statusPill.textContent = '● Aborted';
+    statusPill.innerHTML = '<span class="status-dot"></span> Aborted';
     statusPill.className = 'pill pill-aborted';
   } else if (status === 'error') {
-    statusPill.textContent = '● Error';
-    statusPill.className = 'pill pill-error';
+    statusPill.innerHTML = '<span class="status-dot"></span> Error';
+    statusPill.className = 'pill pill-aborted';
   } else {
-    statusPill.textContent = '● Ready';
+    statusPill.innerHTML = '<span class="status-dot"></span> Ready';
     statusPill.className = 'pill pill-idle';
   }
 }
