@@ -17,12 +17,12 @@ const IGNORED_DIRS = new Set([
   'coverage'
 ]);
 
-const CODE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte']);
+const CODE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte', '.kt', '.java']);
 
 /**
  * Recursively collects file paths up to maxDepth.
  */
-function walkDir(dir, fileList = [], depth = 0, maxDepth = 6) {
+function walkDir(dir, fileList = [], depth = 0, maxDepth = 16) {
   if (depth > maxDepth || !fs.existsSync(dir)) return fileList;
   try {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -33,7 +33,7 @@ function walkDir(dir, fileList = [], depth = 0, maxDepth = 6) {
         }
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
-        if (CODE_EXTENSIONS.has(ext) || entry.name.startsWith('.env') || entry.name.includes('config')) {
+        if (CODE_EXTENSIONS.has(ext) || entry.name.startsWith('.env') || entry.name.endsWith('.properties') || entry.name.includes('config')) {
           fileList.push(path.join(dir, entry.name));
         }
       }
@@ -45,7 +45,7 @@ function walkDir(dir, fileList = [], depth = 0, maxDepth = 6) {
 }
 
 /**
- * Extracts environment variables and URLs from .env* files.
+ * Extracts environment variables and URLs from .env* and .properties files.
  */
 export function parseEnvFiles(projectRoot) {
   const urls = new Set();
@@ -53,7 +53,7 @@ export function parseEnvFiles(projectRoot) {
 
   try {
     const entries = fs.readdirSync(projectRoot);
-    const envFiles = entries.filter(f => f.startsWith('.env'));
+    const envFiles = entries.filter(f => f.startsWith('.env') || f.endsWith('.properties'));
 
     for (const file of envFiles) {
       const fullPath = path.join(projectRoot, file);
@@ -88,14 +88,15 @@ export function parseEnvFiles(projectRoot) {
 }
 
 /**
- * Parses config files like vite.config.*, next.config.*, webpack.config.* for proxy/API targets.
+ * Parses config files like vite.config.*, next.config.*, webpack.config.*, build.gradle* for proxy/API targets.
  */
 export function parseConfigFiles(projectRoot) {
   const urls = new Set();
   const configNames = [
     'vite.config.js', 'vite.config.ts', 'vite.config.mjs',
     'next.config.js', 'next.config.mjs', 'next.config.ts',
-    'nuxt.config.ts', 'webpack.config.js'
+    'nuxt.config.ts', 'webpack.config.js',
+    'build.gradle.kts', 'build.gradle', 'settings.gradle.kts'
   ];
 
   for (const name of configNames) {
@@ -108,6 +109,14 @@ export function parseConfigFiles(projectRoot) {
         for (const match of targetMatches) {
           if (match[1]) urls.add(match[1].replace(/\/+$/, ''));
         }
+
+        // Match buildConfigField or properties with URLs
+        const urlMatches = content.matchAll(/['"`](https?:\/\/[^'"`\s]+)['"`]/gi);
+        for (const match of urlMatches) {
+          if (match[1] && !match[1].includes('schemas.') && !match[1].includes('w3.org')) {
+            urls.add(match[1].replace(/\/+$/, ''));
+          }
+        }
       } catch (err) {}
     }
   }
@@ -116,7 +125,7 @@ export function parseConfigFiles(projectRoot) {
 }
 
 /**
- * Scans code files for network client calls (Axios, Fetch, Ky, RTK Query) and auth headers.
+ * Scans code files for network client calls (Axios, Fetch, Ky, RTK Query, Ktor, Retrofit) and auth headers.
  */
 export function scanCodeFiles(projectRoot) {
   const allFiles = walkDir(projectRoot);
@@ -148,11 +157,35 @@ export function scanCodeFiles(projectRoot) {
       if (m[1]) detectedBaseUrls.add(m[1].replace(/\/+$/, ''));
     }
 
+    // Detect standalone URLs like "https://api..."
+    const fullUrlMatch = content.matchAll(/['"`](https?:\/\/[a-zA-Z0-9.-]+(?::[0-9]+)?(?:\/[^'"`\s]*)?)['"`]/gi);
+    for (const m of fullUrlMatch) {
+      try {
+        const parsed = new URL(m[1]);
+        if (!parsed.hostname.includes('w3.org') && !parsed.hostname.includes('schema') && !parsed.hostname.includes('github') && !parsed.hostname.includes('google')) {
+          detectedBaseUrls.add(`${parsed.protocol}//${parsed.host}`);
+          if (parsed.pathname && parsed.pathname.length > 1) {
+            const key = `GET:${parsed.pathname}`;
+            if (!endpointSeen.has(key)) {
+              endpointSeen.add(key);
+              foundEndpoints.push(createEndpointDescriptor('GET', parsed.pathname));
+            }
+          }
+        }
+      } catch {}
+    }
+
     // Detect Auth / OTP indicators
     if (/otp|2fa|two_factor|verification.*code/i.test(content)) {
       authInfo.requiresOtp = true;
     }
-    if (/x-api-key/i.test(content)) {
+    const apiKeyMatch = content.match(/headers?\.(?:append|put)?\s*\(\s*["']X-API-Key["']\s*,\s*["']([^"']+)["']/i);
+    if (apiKeyMatch) {
+      authInfo.mode = 'custom_header';
+      authInfo.headerName = 'X-API-Key';
+      authInfo.headerPrefix = '';
+      authInfo.token = apiKeyMatch[1];
+    } else if (/x-api-key/i.test(content)) {
       authInfo.mode = 'custom_header';
       authInfo.headerName = 'X-API-Key';
       authInfo.headerPrefix = '';
@@ -218,6 +251,55 @@ export function scanCodeFiles(projectRoot) {
       if (!endpointSeen.has(key)) {
         endpointSeen.add(key);
         foundEndpoints.push(createEndpointDescriptor(method, epPath));
+      }
+    }
+
+    // 5. Retrofit annotations: @GET("..."), @POST("...")
+    const retrofitRegex = /@(GET|POST|PUT|PATCH|DELETE)\s*\(\s*["']([^"']+)["']\s*\)/gi;
+    while ((match = retrofitRegex.exec(content)) !== null) {
+      const method = match[1].toUpperCase();
+      let epPath = match[2];
+      if (!epPath.startsWith('/') && !/^https?:\/\//i.test(epPath)) {
+        epPath = '/' + epPath;
+      }
+      const key = `${method}:${epPath}`;
+      if (!endpointSeen.has(key)) {
+        endpointSeen.add(key);
+        foundEndpoints.push(createEndpointDescriptor(method, epPath));
+      }
+    }
+
+    // 6. Ktor: url(BuildConfig.BaseUrl + "path") or httpClient.post("path") or url("path")
+    const ktorUrlRegex = /(?:url\s*\(\s*(?:BuildConfig\.[a-zA-Z0-9_]+\s*\+\s*|\$\{BuildConfig\.[a-zA-Z0-9_]+\}|")|(?:\.httpClient|\bclient)\.(get|post|put|patch|delete)\s*\(\s*(?:BuildConfig\.[a-zA-Z0-9_]+\s*\+\s*|\$\{BuildConfig\.[a-zA-Z0-9_]+\}|")|url\s*\(\s*)["']?([^"')\r\n]+)["']?\)?/gi;
+    let ktorMatch;
+    while ((ktorMatch = ktorUrlRegex.exec(content)) !== null) {
+      let rawPath = ktorMatch[2] || ktorMatch[0];
+      const pathMatch = rawPath.match(/["']([a-zA-Z0-9_/:-]+)["']/);
+      if (pathMatch) {
+        let epPath = pathMatch[1];
+        if (epPath.startsWith('http')) {
+          try {
+            const u = new URL(epPath);
+            epPath = u.pathname;
+            detectedBaseUrls.add(`${u.protocol}//${u.host}`);
+          } catch {}
+        }
+        if (!epPath.startsWith('/')) epPath = '/' + epPath;
+        if (epPath.length > 1 && !epPath.includes(' ') && !epPath.includes('=')) {
+          // Determine method
+          let method = 'GET';
+          if (/post/i.test(ktorMatch[1] || '')) method = 'POST';
+          else if (/delete/i.test(ktorMatch[1] || '')) method = 'DELETE';
+          else if (/put/i.test(ktorMatch[1] || '')) method = 'PUT';
+          else if (/logout|login|replace|join|avatar|register/i.test(epPath)) method = 'POST';
+          else if (/delete|remove|cancel/i.test(epPath)) method = 'DELETE';
+
+          const key = `${method}:${epPath}`;
+          if (!endpointSeen.has(key)) {
+            endpointSeen.add(key);
+            foundEndpoints.push(createEndpointDescriptor(method, epPath));
+          }
+        }
       }
     }
   }
