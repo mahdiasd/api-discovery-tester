@@ -183,9 +183,11 @@ export function extractParamsFromBody(body, context = {}) {
   for (const [key, value] of Object.entries(body)) {
     if (value !== null && typeof value !== 'object') {
       const lowerKey = key.toLowerCase();
-      if (lowerKey === 'id' || lowerKey.endsWith('id') || lowerKey.includes('token')) {
+      const strippedKey = lowerKey.replace(/[_-]/g, '');
+      if (lowerKey === 'id' || lowerKey.endsWith('id') || lowerKey.includes('token') || strippedKey === 'jwt') {
         context[key] = value;
         context[lowerKey] = value;
+        context[strippedKey] = value;
       }
     } else if (typeof value === 'object') {
       extractParamsFromBody(value, context);
@@ -270,6 +272,7 @@ export async function runTests({
     .sort((a, b) => (a.executionOrder || 0) - (b.executionOrder || 0));
 
   const propagationContext = {};
+  const currentAuth = { ...(auth || {}) };
   const cleanBaseUrl = (baseUrl || '').replace(/\/+$/, '');
 
   for (let i = 0; i < endpointsToRun.length; i++) {
@@ -299,25 +302,36 @@ export async function runTests({
       ...(ep.defaultHeaders || {})
     };
 
-    if (auth && auth.mode === 'bearer_token' && auth.token) {
-      const prefix = auth.headerPrefix !== undefined ? auth.headerPrefix : 'Bearer ';
-      const tokenVal = auth.token.startsWith(prefix) ? auth.token : `${prefix}${auth.token}`;
-      headers[auth.headerName || 'Authorization'] = tokenVal;
-    } else if (auth && auth.mode === 'custom_header' && auth.token) {
-      headers[auth.headerName || 'X-API-Key'] = auth.token;
-    } else if (auth && auth.mode === 'two_factor_otp') {
-      if (auth.token) {
-        const prefix = auth.headerPrefix !== undefined ? auth.headerPrefix : 'Bearer ';
-        headers[auth.headerName || 'Authorization'] = auth.token.startsWith(prefix) ? auth.token : `${prefix}${auth.token}`;
+    // Apply authentication headers (using currentAuth which holds initial token OR dynamically extracted token from prior steps)
+    if (currentAuth.token) {
+      if (currentAuth.mode === 'custom_header') {
+        headers[currentAuth.headerName || 'X-API-Key'] = currentAuth.token;
+      } else {
+        const prefix = currentAuth.headerPrefix !== undefined ? currentAuth.headerPrefix : 'Bearer ';
+        const tokenVal = currentAuth.token.startsWith(prefix) ? currentAuth.token : `${prefix}${currentAuth.token}`;
+        headers[currentAuth.headerName || 'Authorization'] = tokenVal;
       }
-      if (auth.otpCode) {
-        headers['X-OTP-Code'] = auth.otpCode;
-        headers['X-2FA-Code'] = auth.otpCode;
-      }
-    } else if (auth && auth.mode === 'login_credentials') {
-      if (auth.username && auth.password) {
-        const encoded = Buffer.from(`${auth.username}:${auth.password}`).toString('base64');
+    } else if (currentAuth.mode === 'login_credentials') {
+      if (currentAuth.username && currentAuth.password) {
+        const encoded = Buffer.from(`${currentAuth.username}:${currentAuth.password}`).toString('base64');
         headers['Authorization'] = `Basic ${encoded}`;
+      }
+    }
+
+    if (currentAuth.mode === 'two_factor_otp' && currentAuth.otpCode) {
+      headers['X-OTP-Code'] = currentAuth.otpCode;
+      headers['X-2FA-Code'] = currentAuth.otpCode;
+    }
+
+    // Determine request body (if login endpoint and credentials mode, populate body if empty)
+    let requestBody = ep.defaultBody || null;
+    const isLoginEndpoint = /login|auth|signin/i.test(ep.path) || /login|auth|signin/i.test(ep.name);
+    if (isLoginEndpoint && currentAuth.mode === 'login_credentials' && (!requestBody || Object.keys(requestBody).length === 0)) {
+      if (currentAuth.username && currentAuth.password) {
+        requestBody = {
+          username: currentAuth.username,
+          password: currentAuth.password
+        };
       }
     }
 
@@ -326,12 +340,33 @@ export async function runTests({
       url: finalUrl,
       method: ep.method,
       headers,
-      body: ep.defaultBody
+      body: requestBody
     });
 
     // Extract dynamic params for downstream requests
     if (response.responseBody) {
       extractParamsFromBody(response.responseBody, propagationContext);
+    }
+
+    // Dynamic token propagation: inspect response body and headers for newly issued tokens
+    const candidateTokens = [
+      propagationContext['token'],
+      propagationContext['accesstoken'],
+      propagationContext['access_token'],
+      propagationContext['jwt'],
+      propagationContext['authtoken'],
+      propagationContext['idtoken'],
+      (response.responseHeaders && response.responseHeaders['authorization']),
+      (response.responseHeaders && response.responseHeaders['x-auth-token'])
+    ];
+
+    const detectedToken = candidateTokens.find(t => typeof t === 'string' && t.trim().length > 0);
+    if (detectedToken) {
+      const cleanToken = detectedToken.replace(/^Bearer\s+/i, '').trim();
+      currentAuth.token = cleanToken;
+      if (currentAuth.mode === 'login_credentials' || currentAuth.mode === 'none') {
+        currentAuth.mode = 'bearer_token';
+      }
     }
 
     // Diagnose error
@@ -348,9 +383,10 @@ export async function runTests({
       latencyMs: response.latencyMs,
       success: response.success,
       requestHeaders: headers,
-      requestBody: ep.defaultBody || null,
+      requestBody: requestBody,
       responseHeaders: response.responseHeaders,
       responseBody: response.responseBody,
+      propagatedToken: currentAuth.token || null,
       diagnostics
     };
 

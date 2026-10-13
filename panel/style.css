@@ -1,7 +1,6 @@
 /* ==========================================================================
    API Tester Workbench - Theme System
-   Custom Palette: CFFY Gold / Warm Tonal & Neutral Charcoal
-   Fonts: IBM Plex Sans & JetBrains Mono | Zero Blue Tint in Dark Mode
+   Custom Palette: CFFY Sapphire Blue, Neutral Charcoal & Tonal Slate
    ========================================================================== */
 
 :root {
@@ -10,28 +9,28 @@
   --cffy-theme-dark-a0: #000000;
 
   /** Theme primary colors */
-  --cffy-theme-primary-a0: #c08f37;
-  --cffy-theme-primary-a10: #c79a4f;
-  --cffy-theme-primary-a20: #cda565;
-  --cffy-theme-primary-a30: #d3b179;
-  --cffy-theme-primary-a40: #dabc8c;
-  --cffy-theme-primary-a50: #e0c7a0;
+  --cffy-theme-primary-a0: #376ff0;
+  --cffy-theme-primary-a10: #4a7ff3;
+  --cffy-theme-primary-a20: #5e8ff6;
+  --cffy-theme-primary-a30: #719df8;
+  --cffy-theme-primary-a40: #85acfb;
+  --cffy-theme-primary-a50: #99bafc;
 
   /** Theme surface colors */
   --cffy-theme-surface-a0: #121212;
   --cffy-theme-surface-a10: #252525;
   --cffy-theme-surface-a20: #393939;
   --cffy-theme-surface-a30: #4f4f4f;
-  --cffy-theme-surface-a40: #666666;
+  --cffy-theme-surface-a40: #666;
   --cffy-theme-surface-a50: #7d7d7d;
 
   /** Theme tonal surface colors */
-  --cffy-theme-surface-tonal-a0: #201d17;
-  --cffy-theme-surface-tonal-a10: #33302a;
-  --cffy-theme-surface-tonal-a20: #46433e;
+  --cffy-theme-surface-tonal-a0: #161b25;
+  --cffy-theme-surface-tonal-a10: #292e37;
+  --cffy-theme-surface-tonal-a20: #3d424b;
   --cffy-theme-surface-tonal-a30: #5b5853;
-  --cffy-theme-surface-tonal-a40: #706e6a;
-  --cffy-theme-surface-tonal-a50: #878581;
+  --cffy-theme-surface-tonal-a40: #696d74;
+  --cffy-theme-surface-tonal-a50: #80838a;
 
   /** Success colors */
   --cffy-theme-success-a0: #7dff95;
@@ -65,26 +64,26 @@
 }
 
 /* --------------------------------------------------------------------------
-   Dark Theme (Zero blue tint - Pure charcoal & warm gold tonal)
+   Dark Theme (Neutral Charcoal & Tonal Slate with Sapphire Primary)
    -------------------------------------------------------------------------- */
 body.theme-dark {
   --bg-app: var(--cffy-theme-surface-a0);                 /* #121212 */
-  --bg-surface: var(--cffy-theme-surface-tonal-a0);       /* #201d17 */
-  --bg-surface-elevated: var(--cffy-theme-surface-tonal-a10); /* #33302a */
+  --bg-surface: var(--cffy-theme-surface-tonal-a0);       /* #161b25 */
+  --bg-surface-elevated: var(--cffy-theme-surface-tonal-a10); /* #292e37 */
   --bg-input: var(--cffy-theme-surface-a10);              /* #252525 */
-  --bg-code: #171512;
+  --bg-code: #0f131a;
 
-  --border-subtle: var(--cffy-theme-surface-tonal-a10);   /* #33302a */
-  --border-hover: var(--cffy-theme-surface-tonal-a20);    /* #46433e */
-  --border-focus: var(--cffy-theme-primary-a0);           /* #c08f37 */
+  --border-subtle: var(--cffy-theme-surface-tonal-a10);   /* #292e37 */
+  --border-hover: var(--cffy-theme-surface-tonal-a20);    /* #3d424b */
+  --border-focus: var(--cffy-theme-primary-a0);           /* #376ff0 */
 
   --text-primary: var(--cffy-theme-light-a0);             /* #ffffff */
-  --text-secondary: var(--cffy-theme-primary-a40);        /* #dabc8c */
-  --text-muted: var(--cffy-theme-surface-tonal-a50);      /* #878581 */
+  --text-secondary: var(--cffy-theme-primary-a40);        /* #85acfb */
+  --text-muted: var(--cffy-theme-surface-tonal-a50);      /* #80838a */
 
-  --color-primary: var(--cffy-theme-primary-a0);          /* #c08f37 */
-  --color-primary-hover: var(--cffy-theme-primary-a10);   /* #c79a4f */
-  --color-primary-text: #121212;
+  --color-primary: var(--cffy-theme-primary-a0);          /* #376ff0 */
+  --color-primary-hover: var(--cffy-theme-primary-a10);   /* #4a7ff3 */
+  --color-primary-text: #ffffff;
 
   --color-danger: var(--cffy-theme-danger-a0);            /* #ff8080 */
   --color-danger-hover: var(--cffy-theme-danger-a10);     /* #ff9b99 */
@@ -105,25 +104,25 @@ body.theme-dark {
 }
 
 /* --------------------------------------------------------------------------
-   Light Theme (Warm Alabaster & Crisp Gold)
+   Light Theme (Crisp Neutral & Sapphire Primary)
    -------------------------------------------------------------------------- */
 body.theme-light {
-  --bg-app: #FAF8F5;
+  --bg-app: #F8FAFC;
   --bg-surface: var(--cffy-theme-light-a0);               /* #ffffff */
-  --bg-surface-elevated: #F5EFE6;
+  --bg-surface-elevated: #EEF2F6;
   --bg-input: #FFFFFF;
-  --bg-code: #F4EFE8;
+  --bg-code: #F1F5F9;
 
-  --border-subtle: #E6DFD5;
-  --border-hover: #D5CBBE;
-  --border-focus: var(--cffy-theme-primary-a0);           /* #c08f37 */
+  --border-subtle: #E2E8F0;
+  --border-hover: #CBD5E1;
+  --border-focus: var(--cffy-theme-primary-a0);           /* #376ff0 */
 
   --text-primary: var(--cffy-theme-surface-a0);           /* #121212 */
   --text-secondary: var(--cffy-theme-surface-a30);        /* #4f4f4f */
   --text-muted: var(--cffy-theme-surface-a50);            /* #7d7d7d */
 
-  --color-primary: var(--cffy-theme-primary-a0);          /* #c08f37 */
-  --color-primary-hover: #AB7C29;
+  --color-primary: var(--cffy-theme-primary-a0);          /* #376ff0 */
+  --color-primary-hover: #265BD4;
   --color-primary-text: #FFFFFF;
 
   --color-danger: #D93838;
@@ -139,9 +138,9 @@ body.theme-light {
   --color-info: #0D76BA;
   --color-info-bg: rgba(135, 209, 255, 0.25);
 
-  --shadow-sm: 0 1px 3px rgba(32, 29, 23, 0.08);
-  --shadow-md: 0 4px 16px rgba(32, 29, 23, 0.1);
-  --shadow-drawer: -6px 0 24px rgba(32, 29, 23, 0.16);
+  --shadow-sm: 0 1px 3px rgba(18, 18, 18, 0.08);
+  --shadow-md: 0 4px 16px rgba(18, 18, 18, 0.1);
+  --shadow-drawer: -6px 0 24px rgba(18, 18, 18, 0.16);
 }
 
 /* --------------------------------------------------------------------------
@@ -203,8 +202,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #121212;
-  box-shadow: 0 2px 8px rgba(192, 143, 55, 0.35);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(55, 111, 240, 0.35);
 }
 
 .brand-icon {
@@ -371,7 +370,7 @@ body.theme-light .icon-sun { display: none; }
 
 .form-control:focus {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 2px rgba(192, 143, 55, 0.25);
+  box-shadow: 0 0 0 2px rgba(55, 111, 240, 0.25);
 }
 
 .input-with-select {

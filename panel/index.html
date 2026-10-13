@@ -62,15 +62,18 @@
         </div>
         
         <div class="config-grid">
-          <!-- Base URL Input -->
+          <!-- Base URL Input with Datalist -->
           <div class="form-group span-2">
             <label for="base-url-input">Target Base URL</label>
-            <div class="input-with-select">
-              <input type="text" id="base-url-input" placeholder="https://api.example.com" class="form-control font-mono">
-              <select id="env-urls-select" class="form-control select-env" title="Detected backend host environments">
-                <option value="">-- Discovered Targets --</option>
-              </select>
-            </div>
+            <input 
+              type="text" 
+              id="base-url-input" 
+              list="env-urls-datalist" 
+              placeholder="https://api.example.com (Select discovered target or type custom URL)" 
+              class="form-control font-mono"
+              autocomplete="off"
+            >
+            <datalist id="env-urls-datalist"></datalist>
           </div>
 
           <!-- Auth Mode Dropdown -->

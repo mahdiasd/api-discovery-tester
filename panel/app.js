@@ -14,7 +14,7 @@ const themeToggleBtn = document.getElementById('theme-toggle-btn');
 
 // Connection & Auth Elements
 const baseUrlInput = document.getElementById('base-url-input');
-const envUrlsSelect = document.getElementById('env-urls-select');
+const envUrlsDatalist = document.getElementById('env-urls-datalist');
 const authModeSelect = document.getElementById('auth-mode-select');
 
 const authField1Group = document.getElementById('auth-field-1-group');
@@ -173,21 +173,16 @@ function setupAuthModeSwitcher() {
 function renderManifest(manifest) {
   projectTitle.textContent = manifest.projectName || 'Frontend Application';
 
-  // Base URLs
+  // Base URLs & Datalist
   baseUrlInput.value = manifest.defaultBaseUrl || '';
-  envUrlsSelect.innerHTML = '<option value="">-- Discovered Targets --</option>';
-  (manifest.baseUrls || []).forEach(url => {
-    const opt = document.createElement('option');
-    opt.value = url;
-    opt.textContent = url;
-    envUrlsSelect.appendChild(opt);
-  });
-
-  envUrlsSelect.addEventListener('change', () => {
-    if (envUrlsSelect.value) {
-      baseUrlInput.value = envUrlsSelect.value;
-    }
-  });
+  if (envUrlsDatalist) {
+    envUrlsDatalist.innerHTML = '';
+    (manifest.baseUrls || []).forEach(url => {
+      const opt = document.createElement('option');
+      opt.value = url;
+      envUrlsDatalist.appendChild(opt);
+    });
+  }
 
   // Auth setup
   if (manifest.auth) {
@@ -521,6 +516,15 @@ function connectSSE() {
       statFailed.textContent = failedCount;
       if (cell) {
         cell.innerHTML = `<span class="status-tag status-failed">✗ ${data.httpStatus || 'ERR'} <span class="badge text-xs">${data.latencyMs}ms</span></span>`;
+      }
+    // Dynamic token propagation: reflect newly acquired token in panel inputs
+    if (data.propagatedToken) {
+      if (authModeSelect.value === 'login_credentials') {
+        authModeSelect.value = 'bearer_token';
+        updateAuthVisibility();
+      }
+      if (authField2Input) {
+        authField2Input.value = data.propagatedToken;
       }
     }
 

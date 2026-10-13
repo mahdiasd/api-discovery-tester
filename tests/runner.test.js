@@ -135,3 +135,79 @@ test('runTests executes chained endpoints and saves isolated JSON response files
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('runTests dynamically propagates newly received auth tokens from login endpoint to subsequent requests', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-token-prop-'));
+
+  const receivedRequests = [];
+  const mockServer = http.createServer((req, res) => {
+    receivedRequests.push({ method: req.method, url: req.url, headers: req.headers });
+
+    if (req.method === 'POST' && req.url === '/v1/auth/login') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ data: { accessToken: 'dynamically-acquired-jwt-token' } }));
+      return;
+    }
+
+    if (req.method === 'GET' && req.url === '/v1/profile') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ name: 'Alice', role: 'admin' }));
+      return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'not found' }));
+  });
+
+  await new Promise(res => mockServer.listen(0, res));
+  const port = mockServer.address().port;
+  const baseUrl = `http://localhost:${port}`;
+
+  try {
+    const manifest = createDefaultManifest({
+      projectName: 'token-prop-project',
+      defaultBaseUrl: baseUrl,
+      endpoints: [
+        {
+          id: 'post-login',
+          name: 'User Login',
+          path: '/v1/auth/login',
+          method: 'POST',
+          riskLevel: 'MUTATING',
+          executionOrder: 1,
+          defaultSelected: false
+        },
+        {
+          id: 'get-profile',
+          name: 'Get Profile',
+          path: '/v1/profile',
+          method: 'GET',
+          riskLevel: 'SAFE',
+          executionOrder: 2,
+          defaultSelected: true
+        }
+      ]
+    });
+    saveManifest(manifest, tmpDir);
+
+    const emittedEvents = [];
+    await runTests({
+      projectRoot: tmpDir,
+      runId: 'token-prop-run',
+      baseUrl,
+      auth: { mode: 'login_credentials', username: 'alice', password: 'password123' },
+      selectedEndpointIds: ['post-login', 'get-profile'],
+      onEvent: (type, data) => emittedEvents.push({ type, data })
+    });
+
+    assert.strictEqual(receivedRequests.length, 2);
+    // Downstream request /v1/profile must have received Authorization header with the newly acquired token!
+    const profileReq = receivedRequests[1];
+    assert.ok(profileReq.headers['authorization']);
+    assert.strictEqual(profileReq.headers['authorization'], 'Bearer dynamically-acquired-jwt-token');
+
+  } finally {
+    mockServer.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
