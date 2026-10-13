@@ -1,0 +1,29 @@
+{
+  "name": "api-discovery-tester",
+  "version": "1.0.0",
+  "description": "Frontend API Discovery & Automated Testing Tool for AI Coding Agents (Antigravity Skill)",
+  "type": "module",
+  "main": "scripts/scanner.js",
+  "bin": {
+    "api-discovery-tester": "./bin/cli.js"
+  },
+  "scripts": {
+    "start": "node ./bin/cli.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "keywords": [
+    "api-discovery",
+    "api-testing",
+    "frontend",
+    "agent-skill",
+    "antigravity",
+    "farsi",
+    "rtl"
+  ],
+  "author": "Mahdi Asadpur",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mahdiasd/api-discovery-tester.git"
+  }
+}

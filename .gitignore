@@ -1,0 +1,6 @@
+node_modules/
+.api-tester/
+coverage/
+*.log
+.DS_Store
+Thumbs.db
