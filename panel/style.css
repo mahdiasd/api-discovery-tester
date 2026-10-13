@@ -1,10 +1,59 @@
 /* ==========================================================================
-   API Tester Workbench - Professional Developer UI System (ui-ux-pro-max)
-   Fonts: IBM Plex Sans & JetBrains Mono | Themes: Precision Dark & Crisp Light
+   API Tester Workbench - Theme System
+   Custom Palette: CFFY Gold / Warm Tonal & Neutral Charcoal
+   Fonts: IBM Plex Sans & JetBrains Mono | Zero Blue Tint in Dark Mode
    ========================================================================== */
 
 :root {
-  /* Common System Metrics */
+  /** Base text colors */
+  --cffy-theme-light-a0: #ffffff;
+  --cffy-theme-dark-a0: #000000;
+
+  /** Theme primary colors */
+  --cffy-theme-primary-a0: #c08f37;
+  --cffy-theme-primary-a10: #c79a4f;
+  --cffy-theme-primary-a20: #cda565;
+  --cffy-theme-primary-a30: #d3b179;
+  --cffy-theme-primary-a40: #dabc8c;
+  --cffy-theme-primary-a50: #e0c7a0;
+
+  /** Theme surface colors */
+  --cffy-theme-surface-a0: #121212;
+  --cffy-theme-surface-a10: #252525;
+  --cffy-theme-surface-a20: #393939;
+  --cffy-theme-surface-a30: #4f4f4f;
+  --cffy-theme-surface-a40: #666666;
+  --cffy-theme-surface-a50: #7d7d7d;
+
+  /** Theme tonal surface colors */
+  --cffy-theme-surface-tonal-a0: #201d17;
+  --cffy-theme-surface-tonal-a10: #33302a;
+  --cffy-theme-surface-tonal-a20: #46433e;
+  --cffy-theme-surface-tonal-a30: #5b5853;
+  --cffy-theme-surface-tonal-a40: #706e6a;
+  --cffy-theme-surface-tonal-a50: #878581;
+
+  /** Success colors */
+  --cffy-theme-success-a0: #7dff95;
+  --cffy-theme-success-a10: #9dffac;
+  --cffy-theme-success-a20: #b8ffc1;
+
+  /** Warning colors */
+  --cffy-theme-warning-a0: #ffbc5e;
+  --cffy-theme-warning-a10: #ffca83;
+  --cffy-theme-warning-a20: #ffd8a4;
+
+  /** Danger colors */
+  --cffy-theme-danger-a0: #ff8080;
+  --cffy-theme-danger-a10: #ff9b99;
+  --cffy-theme-danger-a20: #ffb5b2;
+
+  /** Info colors */
+  --cffy-theme-info-a0: #87d1ff;
+  --cffy-theme-info-a10: #a1dbff;
+  --cffy-theme-info-a20: #b9e4ff;
+
+  /* Typography & Sizing */
   --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --radius-sm: 4px;
@@ -16,81 +65,83 @@
 }
 
 /* --------------------------------------------------------------------------
-   Dark Theme (Default)
+   Dark Theme (Zero blue tint - Pure charcoal & warm gold tonal)
    -------------------------------------------------------------------------- */
 body.theme-dark {
-  --bg-app: #090D16;
-  --bg-surface: #101626;
-  --bg-surface-elevated: #162035;
-  --bg-input: #0B101E;
-  --bg-code: #080C14;
+  --bg-app: var(--cffy-theme-surface-a0);                 /* #121212 */
+  --bg-surface: var(--cffy-theme-surface-tonal-a0);       /* #201d17 */
+  --bg-surface-elevated: var(--cffy-theme-surface-tonal-a10); /* #33302a */
+  --bg-input: var(--cffy-theme-surface-a10);              /* #252525 */
+  --bg-code: #171512;
 
-  --border-subtle: #1E293B;
-  --border-focus: #3B82F6;
+  --border-subtle: var(--cffy-theme-surface-tonal-a10);   /* #33302a */
+  --border-hover: var(--cffy-theme-surface-tonal-a20);    /* #46433e */
+  --border-focus: var(--cffy-theme-primary-a0);           /* #c08f37 */
 
-  --text-primary: #F8FAFC;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
+  --text-primary: var(--cffy-theme-light-a0);             /* #ffffff */
+  --text-secondary: var(--cffy-theme-primary-a40);        /* #dabc8c */
+  --text-muted: var(--cffy-theme-surface-tonal-a50);      /* #878581 */
 
-  --color-primary: #3B82F6;
-  --color-primary-hover: #2563EB;
-  --color-primary-text: #FFFFFF;
+  --color-primary: var(--cffy-theme-primary-a0);          /* #c08f37 */
+  --color-primary-hover: var(--cffy-theme-primary-a10);   /* #c79a4f */
+  --color-primary-text: #121212;
 
-  --color-danger: #EF4444;
-  --color-danger-hover: #DC2626;
-  --color-danger-bg: rgba(239, 68, 68, 0.12);
+  --color-danger: var(--cffy-theme-danger-a0);            /* #ff8080 */
+  --color-danger-hover: var(--cffy-theme-danger-a10);     /* #ff9b99 */
+  --color-danger-bg: rgba(255, 128, 128, 0.15);
 
-  --color-success: #10B981;
-  --color-success-bg: rgba(16, 185, 129, 0.12);
+  --color-success: var(--cffy-theme-success-a0);          /* #7dff95 */
+  --color-success-bg: rgba(125, 255, 149, 0.15);
 
-  --color-warning: #F59E0B;
-  --color-warning-bg: rgba(245, 158, 11, 0.12);
+  --color-warning: var(--cffy-theme-warning-a0);          /* #ffbc5e */
+  --color-warning-bg: rgba(255, 188, 94, 0.15);
 
-  --color-purple: #8B5CF6;
-  --color-purple-bg: rgba(139, 92, 246, 0.12);
+  --color-info: var(--cffy-theme-info-a0);                /* #87d1ff */
+  --color-info-bg: rgba(135, 209, 255, 0.15);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-drawer: -8px 0 24px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.65);
+  --shadow-drawer: -8px 0 28px rgba(0, 0, 0, 0.8);
 }
 
 /* --------------------------------------------------------------------------
-   Light Theme
+   Light Theme (Warm Alabaster & Crisp Gold)
    -------------------------------------------------------------------------- */
 body.theme-light {
-  --bg-app: #F8FAFC;
-  --bg-surface: #FFFFFF;
-  --bg-surface-elevated: #F1F5F9;
+  --bg-app: #FAF8F5;
+  --bg-surface: var(--cffy-theme-light-a0);               /* #ffffff */
+  --bg-surface-elevated: #F5EFE6;
   --bg-input: #FFFFFF;
-  --bg-code: #F1F5F9;
+  --bg-code: #F4EFE8;
 
-  --border-subtle: #E2E8F0;
-  --border-focus: #2563EB;
+  --border-subtle: #E6DFD5;
+  --border-hover: #D5CBBE;
+  --border-focus: var(--cffy-theme-primary-a0);           /* #c08f37 */
 
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #94A3B8;
+  --text-primary: var(--cffy-theme-surface-a0);           /* #121212 */
+  --text-secondary: var(--cffy-theme-surface-a30);        /* #4f4f4f */
+  --text-muted: var(--cffy-theme-surface-a50);            /* #7d7d7d */
 
-  --color-primary: #2563EB;
-  --color-primary-hover: #1D4ED8;
+  --color-primary: var(--cffy-theme-primary-a0);          /* #c08f37 */
+  --color-primary-hover: #AB7C29;
   --color-primary-text: #FFFFFF;
 
-  --color-danger: #DC2626;
+  --color-danger: #D93838;
   --color-danger-hover: #B91C1C;
-  --color-danger-bg: rgba(220, 38, 38, 0.08);
+  --color-danger-bg: rgba(255, 128, 128, 0.22);
 
-  --color-success: #059669;
-  --color-success-bg: rgba(5, 150, 105, 0.08);
+  --color-success: #0C882A;
+  --color-success-bg: rgba(125, 255, 149, 0.25);
 
-  --color-warning: #D97706;
-  --color-warning-bg: rgba(217, 119, 6, 0.08);
+  --color-warning: #C27A13;
+  --color-warning-bg: rgba(255, 188, 94, 0.22);
 
-  --color-purple: #7C3AED;
-  --color-purple-bg: rgba(124, 58, 237, 0.08);
+  --color-info: #0D76BA;
+  --color-info-bg: rgba(135, 209, 255, 0.25);
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-drawer: -6px 0 20px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 3px rgba(32, 29, 23, 0.08);
+  --shadow-md: 0 4px 16px rgba(32, 29, 23, 0.1);
+  --shadow-drawer: -6px 0 24px rgba(32, 29, 23, 0.16);
 }
 
 /* --------------------------------------------------------------------------
@@ -147,12 +198,13 @@ body {
 .brand-icon-wrapper {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, var(--color-primary), #6366F1);
+  background: linear-gradient(135deg, var(--cffy-theme-primary-a0), var(--cffy-theme-primary-a30));
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #FFFFFF;
+  color: #121212;
+  box-shadow: 0 2px 8px rgba(192, 143, 55, 0.35);
 }
 
 .brand-icon {
@@ -184,7 +236,7 @@ body {
   gap: 6px;
   font-size: 11px;
   font-weight: 600;
-  padding: 1px 8px;
+  padding: 2px 8px;
   border-radius: var(--radius-pill);
 }
 
@@ -319,7 +371,7 @@ body.theme-light .icon-sun { display: none; }
 
 .form-control:focus {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 2px rgba(192, 143, 55, 0.25);
 }
 
 .input-with-select {
@@ -491,7 +543,7 @@ body.theme-light .icon-sun { display: none; }
 
 .btn-danger {
   background-color: var(--color-danger);
-  color: #FFFFFF;
+  color: #121212;
 }
 
 .btn-danger:hover {
@@ -520,7 +572,7 @@ body.theme-light .icon-sun { display: none; }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-success));
+  background: linear-gradient(90deg, var(--cffy-theme-primary-a0), var(--cffy-theme-success-a0));
   border-radius: var(--radius-pill);
   transition: width 200ms ease;
 }
@@ -606,8 +658,8 @@ body.theme-light .icon-sun { display: none; }
 }
 
 .badge-method-get { background-color: var(--color-success-bg); color: var(--color-success); }
-.badge-method-post { background-color: rgba(59, 130, 246, 0.12); color: var(--color-primary); }
-.badge-method-put { background-color: var(--color-purple-bg); color: var(--color-purple); }
+.badge-method-post { background-color: var(--color-info-bg); color: var(--color-info); }
+.badge-method-put { background-color: var(--color-warning-bg); color: var(--color-warning); }
 .badge-method-delete { background-color: var(--color-danger-bg); color: var(--color-danger); }
 .badge-method-patch { background-color: var(--color-warning-bg); color: var(--color-warning); }
 
@@ -738,6 +790,7 @@ body.theme-light .icon-sun { display: none; }
   font-size: 12px;
   border: 1px solid var(--border-subtle);
   overflow-x: auto;
+  color: var(--text-secondary);
 }
 
 .code-group {
@@ -782,7 +835,7 @@ body.theme-light .icon-sun { display: none; }
 
 .diag-chip {
   background-color: var(--color-danger);
-  color: #FFFFFF;
+  color: #121212;
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
@@ -803,7 +856,7 @@ body.theme-light .icon-sun { display: none; }
 }
 
 .diag-fix-box {
-  background-color: rgba(0, 0, 0, 0.15);
+  background-color: rgba(0, 0, 0, 0.2);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-size: 12px;
@@ -820,7 +873,7 @@ body.theme-light .icon-sun { display: none; }
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.65);
+  background-color: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   z-index: 60;
   display: flex;
