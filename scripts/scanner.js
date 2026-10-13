@@ -42,6 +42,7 @@ export function isValidApiEndpoint(epPath) {
 
   if (lower.length < 3) return false;
   if (/^\/[a-zA-Z0-9]$/.test(lower)) return false;
+  if (/\s/.test(lower)) return false;
   if (lower.includes('/sax/') || lower.includes('/features/') || lower.includes('/properties/')) return false;
   if (lower.includes('xmlpull') || lower.includes('xmlns') || lower.includes('doctype')) return false;
 
@@ -288,11 +289,11 @@ export function scanCodeFiles(projectRoot) {
       registerEndpoint(method, rawPath, fnName);
     }
 
-    // Match generic url("path") or url(BuildConfig.BaseUrl + "path") in Ktor
-    const genericKtorUrlRegex = /(?:url|\.post|\.get|\.put|\.delete)\s*(?:\(\s*[^)]*?|\{\s*[^}]*?url\s*\(\s*[^)]*?)(['"])([^'"]+)\1/gi;
+    // Match Ktor builder url("/path") or url(BuildConfig.BaseUrl + "/path")
+    const ktorUrlRegex = /\burl\s*\(\s*(?:(?:BuildConfig\.[a-zA-Z0-9_]+|["'\w]+)\s*\+\s*)?['"](\/[a-zA-Z0-9_/{}:.-]+)['"]/g;
     let genMatch;
-    while ((genMatch = genericKtorUrlRegex.exec(content)) !== null) {
-      const rawPath = genMatch[2];
+    while ((genMatch = ktorUrlRegex.exec(content)) !== null) {
+      const rawPath = genMatch[1];
       let inferredMethod = 'GET';
       if (/login|logout|replace|create|submit|join|avatar|upload|register|post/i.test(rawPath)) {
         inferredMethod = 'POST';
@@ -300,6 +301,13 @@ export function scanCodeFiles(projectRoot) {
         inferredMethod = 'DELETE';
       }
       registerEndpoint(inferredMethod, rawPath);
+    }
+
+    // Direct HTTP client call in Ktor: client.get("/path"), httpClient.post("/path")
+    const ktorClientCallRegex = /(?:client|httpClient|provider\.httpClient)\.(get|post|put|patch|delete)\s*\(\s*['"](\/[^'"]+)['"]/gi;
+    let ktorCallMatch;
+    while ((ktorCallMatch = ktorClientCallRegex.exec(content)) !== null) {
+      registerEndpoint(ktorCallMatch[1].toUpperCase(), ktorCallMatch[2]);
     }
 
     // 4. Retrofit Extraction
@@ -313,10 +321,12 @@ export function scanCodeFiles(projectRoot) {
     }
 
     // 5. JavaScript / TypeScript: Axios, Ky, Fetch
-    const clientCallRegex = /(?:axios|api|client|http|request|ky)\.(get|post|put|patch|delete|head|options)\s*\(\s*['"`]([^\s'"`]+)['"`]/gi;
-    let clientMatch;
-    while ((clientMatch = clientCallRegex.exec(content)) !== null) {
-      registerEndpoint(clientMatch[1].toUpperCase(), clientMatch[2]);
+    if (ext !== '.kt' && ext !== '.java') {
+      const clientCallRegex = /(?:axios|api|client|http|request|ky)\.(get|post|put|patch|delete|head|options)\s*\(\s*['"`]([^\s'"`]+)['"`]/gi;
+      let clientMatch;
+      while ((clientMatch = clientCallRegex.exec(content)) !== null) {
+        registerEndpoint(clientMatch[1].toUpperCase(), clientMatch[2]);
+      }
     }
 
     const fetchRegex = /fetch\s*\(\s*['"`]([^\s'"`]+)['"`](?:\s*,\s*\{[^}]*method\s*:\s*['"`]([a-zA-Z]+)['"`])?/gi;
